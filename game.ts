@@ -32,6 +32,30 @@ const kristie_speed: number = 2.0;
 const lara_speed: number = 4.0;
 const snake_speed: number = 0.5;
 
+class TileInfo {
+	sprite: string = "";
+	lara_can_walk: boolean = false;
+	kristie_can_walk: boolean = false;
+	
+	constructor (n: number) {
+		if (n == 2) {
+			this.sprite = "placeholder-open-tile";
+			this.lara_can_walk = true;
+			this.kristie_can_walk = true;
+		}
+		else if (n == 3) {
+			this.sprite = "cup";
+			this.lara_can_walk = true;
+			this.kristie_can_walk = true;
+		}
+		else if (n == 4) {
+			this.sprite = "door-staff";
+			this.lara_can_walk = false;
+			this.kristie_can_walk = true;
+		}
+	}
+}
+
 let last_entity = 0;
 
 function create_entity () {
@@ -293,7 +317,7 @@ class GameState {
 		
 		{
 			let e = create_entity ();
-			this.positions.set (e, new PosComponent (0 + 16, 32 + 16));
+			this.positions.set (e, new PosComponent (32 * 1 + 16, 32 + 16));
 			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
 			this.holders.set (e, new HolderComponent ());
 			this.kristie = e;
@@ -301,7 +325,7 @@ class GameState {
 		
 		{
 			let e = create_entity ();
-			this.positions.set (e, new PosComponent (32 + 16, 32 + 16));
+			this.positions.set (e, new PosComponent (32 * 2 + 16, 32 + 16));
 			this.snake_spawners.set (e, new SnakeSpawnerComponent ());
 			
 			this.snake_spawners.get (e)!.fixed_step (this, e);
@@ -404,12 +428,12 @@ class GameState {
 		};
 	}
 	
-	pos_is_walkable (x: number, y: number): boolean {
+	get_tile (x: number, y: number): TileInfo {
 		const tile_x = Math.floor (x / 32);
 		const tile_y = Math.floor (y / 32);
 		const tile_index = tile_y * map_width + tile_x;
 		
-		return map_data [tile_index * 4] == 2;
+		return new TileInfo (map_data [tile_index * 4]);
 	}
 	
 	step (cow_gamepad: CowGamepad) {
@@ -426,7 +450,7 @@ class GameState {
 			this.frames_moved += 1;
 		}
 		
-		if (this.pos_is_walkable (kristie_new_x, kristie_new_y)) {
+		if (this.get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
 			this.sprites.get (this.kristie)!.name = "placeholder-person-glowing";
 			
 			kristie_pos.x = kristie_new_x;
@@ -704,8 +728,10 @@ function draw (game_state: GameState) {
 			const index = y * map_width + x;
 			const tile = map_data [index * 4];
 			
-			if (tile == 2) {
-				draw_sprite ("placeholder-open-tile", x * 32, y * 32);
+			const info = new TileInfo (tile);
+			
+			if (info.sprite) {
+				draw_sprite (info.sprite, x * 32, y * 32);
 			}
 		}
 	}
@@ -834,6 +860,9 @@ draw (game_state);
 set_running (false);
 
 const sprite_names: string [] = [
+	"cup",
+	"door-glow",
+	"door-staff",
 	"placeholder-button",
 	"placeholder-closed-tile",
 	"placeholder-door",
