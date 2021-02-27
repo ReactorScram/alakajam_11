@@ -47,6 +47,10 @@ class PosComponent {
 		this.y = y;
 	}
 	
+	clone (): PosComponent {
+		return new PosComponent (this.x, this.y);
+	}
+	
 	dist2 (o: PosComponent): number {
 		const diff_x = this.x - o.x;
 		const diff_y = this.y - o.y;
@@ -56,7 +60,9 @@ class PosComponent {
 }
 
 class SpriteComponent {
-	name: string;
+	name: string | null;
+	name_func: (() => string | null) | null = null;
+	
 	offset_x: number;
 	offset_y: number;
 	
@@ -91,6 +97,10 @@ class SnakeComponent {
 	}
 }
 
+class SnakeSpawnerComponent {
+	timer: number = 0;
+}
+
 class HolderComponent {
 	holding: number | null;
 	
@@ -110,6 +120,7 @@ class GameState {
 	buttons: Map <number, ButtonComponent>;
 	doors: Map <number, DoorComponent>;
 	snakes: Map <number, SnakeComponent>;
+	snake_spawners: Map <number, SnakeSpawnerComponent>;
 	holders: Map <number, HolderComponent>;
 	
 	constructor () {
@@ -120,6 +131,7 @@ class GameState {
 		this.buttons = new Map ();
 		this.doors = new Map ();
 		this.snakes = new Map ();
+		this.snake_spawners = new Map ();
 		this.holders = new Map ();
 		
 		{
@@ -176,8 +188,7 @@ class GameState {
 		{
 			let e = create_entity ();
 			this.positions.set (e, new PosComponent (400, 100));
-			this.sprites.set (e, new SpriteComponent ("snake", -32 / 2, -32 / 2));
-			this.snakes.set (e, new SnakeComponent ());
+			this.snake_spawners.set (e, new SnakeSpawnerComponent ());
 		}
 	}
 	
@@ -325,7 +336,7 @@ class GameState {
 		
 		let lara_max_x = map_right;
 		if (leftest_door != null) {
-			lara_max_x = this.positions.get (leftest_door)!.x - 32;
+			lara_max_x = this.positions.get (leftest_door)!.x - 16;
 		}
 		
 		const lara_pos = this.positions.get (this.lara)!;
@@ -365,6 +376,29 @@ class GameState {
 			
 			snake_pos.x = holder_pos.x + 32;
 			snake_pos.y = holder_pos.y;
+		}
+		
+		for (const [entity, snake_spawner] of this.snake_spawners) {
+			const spawner_pos = this.positions.get (entity);
+			if (! spawner_pos) {
+				continue;
+			}
+			
+			const nearest_snake = this.nearest_entity (entity, this.snakes, 32);
+			if (! nearest_snake) {
+				snake_spawner.timer += 1;
+				if (snake_spawner.timer >= 120 && this.snakes.size < 10) {
+					let snake = create_entity ();
+					this.positions.set (snake, spawner_pos.clone ());
+					this.sprites.set (snake, new SpriteComponent ("snake", -32 / 2, -32 / 2));
+					this.snakes.set (snake, new SnakeComponent ());
+					
+					console.log ("Spawned snake.");
+				}
+			}
+			else {
+				snake_spawner.timer = 0;
+			}
 		}
 	}
 }
@@ -583,7 +617,15 @@ function draw (game_state: GameState) {
 			return;
 		}
 		
-		draw_sprite (sprite.name, Math.floor (pos.x + sprite.offset_x), Math.floor (pos.y + sprite.offset_y));
+		let name = sprite.name;
+		if (sprite.name_func) {
+			name = sprite.name_func ();
+		}
+		
+		if (name === null) {
+			continue;
+		}
+		draw_sprite (name, Math.floor (pos.x + sprite.offset_x), Math.floor (pos.y + sprite.offset_y));
 	}
 	
 	// UI
