@@ -15,16 +15,34 @@ let fps_num: number = 60;
 let fps_den: number = 1000;
 let timestep_accum: number = fps_den / 2;
 
+const map_left: number = 50;
+const map_right: number = 720;
+const lara_y: number = 203;
+const kristie_y: number = 334;
+
+const kristie_speed: number = 2.0;
+
 class GameState {
 	frame_count: number;
 	
+	kristie_x: number;
+	
 	constructor () {
 		this.frame_count = 0;
-		
+		this.kristie_x = map_right;
 	}
 	
 	step (cow_gamepad: CowGamepad) {
 		this.frame_count += 1;
+		
+		if (cow_gamepad.d_left.down_or_just_pressed ()) {
+			this.kristie_x -= kristie_speed;
+		}
+		if (cow_gamepad.d_right.down_or_just_pressed ()) {
+			this.kristie_x += kristie_speed;
+		}
+		
+		this.kristie_x = Math.min (Math.max (this.kristie_x, map_left), map_right);
 	}
 }
 
@@ -136,6 +154,7 @@ canvas_element.addEventListener ("keydown", event => {
 		return;
 	}
 	
+	console.log ("keydown " + String ());
 	cow_gamepad.keydown (event.code);
 	
 	event.preventDefault ();
@@ -175,7 +194,7 @@ function fixed_step () {
 }
 
 function draw (game_state: GameState) {
-	const scale: number = canvas_element.width / 400;
+	const scale: number = canvas_element.width / 800;
 	
 	ctx.resetTransform ();
 	ctx.scale (scale, scale);
@@ -189,8 +208,14 @@ function draw (game_state: GameState) {
 	
 	// Background
 	
-	ctx.fillStyle = "#854c30";
-	ctx.fillRect (0, 0, 400, 300);
+	draw_sprite ("placeholder-map", 0, 0);
+	
+	// Sprites in painter's order
+	
+	draw_sprite ("placeholder-person", map_left - 32 / 2, lara_y - 32 / 2);
+	draw_sprite ("placeholder-person", game_state.kristie_x - 32 / 2, kristie_y - 32 / 2);
+	
+	// UI
 	
 	ctx.fillStyle ="#000";
 	
@@ -203,11 +228,11 @@ function draw (game_state: GameState) {
 	
 	if (! running) {
 		ctx.fillStyle = "#000";
-		ctx.fillRect (400 / 2 - 150 / 2, 300 / 2 - 50 / 2, 150, 50);
+		ctx.fillRect (800 / 2 - 150 / 2, 600 / 2 - 50 / 2, 150, 50);
 		
 		ctx.fillStyle = "#fff";
 		ctx.textAlign = "center";
-		ctx.fillText ("Click to resume", 400 / 2, 300 / 2);
+		ctx.fillText ("Click to resume", 800 / 2, 600 / 2);
 	}
 }
 
@@ -268,3 +293,22 @@ function pause () {
 
 step (null);
 set_running (false);
+
+const sprite_names: string [] = [
+	"placeholder-map",
+	"placeholder-person",
+];
+
+for (const name of sprite_names) {
+	const img = new Image ();
+	img.src = "assets/png/" + name + ".png";
+	img.decode ()
+	.then (() => {
+		createImageBitmap (img)
+		.then ((value) => {
+			sprites [name] = value;
+			step (null);
+		});
+	});
+}
+
