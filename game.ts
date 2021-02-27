@@ -913,9 +913,22 @@ function fixed_step () {
 function draw (game_state: GameState) {
 	const scale: number = canvas_element.width / 800;
 	const lvl = game_state.level_state;
+	const kristie_pos = lvl.positions.get (lvl.kristie)!;
 	
 	ctx.resetTransform ();
 	ctx.scale (scale, scale);
+	
+	// Background
+	ctx.fillStyle = "#442434";
+	ctx.fillRect (0, 0, 800, 600);
+	
+	const offset_x = Math.max (0, Math.min (4096 - 800, Math.floor (kristie_pos.x) - 400));
+	const offset_y = Math.max (0, Math.min (4096 - 600, Math.floor (kristie_pos.y) - 300));
+	
+	ctx.translate (
+		-offset_x, 
+		-offset_y
+	);
 	
 	function draw_sprite (name, x, y) {
 		const s = get_sprite (name);
@@ -924,14 +937,15 @@ function draw (game_state: GameState) {
 		}
 	}
 	
-	// Background
-	
-	draw_sprite ("placeholder-map", 0, 0);
-	
 	// Tile map
 	
-	for (let y = 0; y < 32; y++) {
-		for (let x = 0; x < lvl.map_width; x++) {
+	const tile_start_y = Math.floor (offset_y / 32) + 0;
+	const tile_stop_y = tile_start_y + 20;
+	const tile_start_x = Math.floor (offset_x / 32) + 0;
+	const tile_stop_x = tile_start_x + 25;
+	
+	for (let y = tile_start_y; y < tile_stop_y; y++) {
+		for (let x = tile_start_x; x < tile_stop_x; x++) {
 			const index = y * lvl.map_width + x;
 			const tile = lvl.map_data [index * 4];
 			
@@ -978,8 +992,6 @@ function draw (game_state: GameState) {
 	
 	const button_prompt = game_state.button_prompt;
 	if (button_prompt) {
-		const kristie_pos = lvl.positions.get (lvl.kristie)!;
-		
 		const margin = 10;
 		
 		const metrics = ctx.measureText (button_prompt);
@@ -997,6 +1009,9 @@ function draw (game_state: GameState) {
 		ctx.textAlign = "center";
 		ctx.fillText (button_prompt, x, y + 20 * 0.25);
 	}
+	
+	ctx.resetTransform ();
+	ctx.scale (scale, scale);
 	
 	ctx.fillStyle ="#000";
 	

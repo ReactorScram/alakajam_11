@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.4" tiledversion="1.4.3" orientation="orthogonal" renderorder="right-down" width="128" height="128" tilewidth="32" tileheight="32" infinite="0" backgroundcolor="#3d3846" nextlayerid="3" nextobjectid="6">
+<map version="1.4" tiledversion="1.4.3" orientation="orthogonal" renderorder="right-down" width="128" height="128" tilewidth="32" tileheight="32" infinite="0" backgroundcolor="#3d3846" nextlayerid="3" nextobjectid="7">
  <editorsettings>
   <chunksize width="128" height="128"/>
   <export target="../assets/tmx/map_2.js" format="js"/>
@@ -27,6 +27,12 @@
    <point/>
   </object>
   <object id="5" type="spawn_snakes" x="273.333" y="244">
+   <point/>
+  </object>
+  <object id="6" type="button" x="659" y="275.333">
+   <properties>
+    <property name="controls" type="object" value="1"/>
+   </properties>
    <point/>
   </object>
  </objectgroup>

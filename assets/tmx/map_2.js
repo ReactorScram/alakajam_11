@@ -110,6 +110,24 @@
                  "width":0,
                  "x":273.333333333333,
                  "y":244
+                }, 
+                {
+                 "height":0,
+                 "id":6,
+                 "name":"",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"controls",
+                         "type":"object",
+                         "value":1
+                        }],
+                 "rotation":0,
+                 "type":"button",
+                 "visible":true,
+                 "width":0,
+                 "x":659,
+                 "y":275.333333333333
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -118,7 +136,7 @@
          "y":0
         }],
  "nextlayerid":3,
- "nextobjectid":6,
+ "nextobjectid":7,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.4.3",
