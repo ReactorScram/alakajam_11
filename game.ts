@@ -406,7 +406,7 @@ class GameState {
 			this.button_prompt = "Space: Pick up snake";
 		}
 		if (action === null) {
-			if (this.frames_moved < 60) {
+			if (this.frames_moved < 30) {
 				this.button_prompt = "Arrow keys: Move";
 			}
 			else {
