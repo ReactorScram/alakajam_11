@@ -1,6 +1,13 @@
+let TileMaps: Object;
+const map = TileMaps ["map_2"].layers [0];
+const map_width: number = map.width;
+const map_data = new Uint8Array (window.atob (map.data).split("").map(function(c) {
+    return c.charCodeAt(0); 
+}));
+
+
 const canvas_element = <HTMLCanvasElement> document.getElementById ("QR4YH2UP");
 const ctx = canvas_element.getContext ('2d');
-
 
 function resize_canvas (width: number, height: number){
 	canvas_element.width = width;
@@ -18,10 +25,10 @@ let timestep_accum: number = fps_den / 2;
 
 const map_left: number = 50;
 const map_right: number = 720;
-const lara_y: number = 203;
-const kristie_y: number = 334;
+const lara_y: number = 334;
+const kristie_y: number = 203;
 
-const kristie_speed: number = 4.0;
+const kristie_speed: number = 2.0;
 const lara_speed: number = 4.0;
 
 let last_entity = 0;
@@ -160,7 +167,7 @@ class GameState {
 		
 		{
 			let e = create_entity ();
-			this.positions.set (e, new PosComponent (map_right, kristie_y));
+			this.positions.set (e, new PosComponent (32 + 16, 32 + 16));
 			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
 			this.holders.set (e, new HolderComponent ());
 			this.kristie = e;
@@ -168,7 +175,7 @@ class GameState {
 		
 		{
 			let e = create_entity ();
-			this.positions.set (e, new PosComponent (400, 500));
+			this.positions.set (e, new PosComponent (400, 100));
 			this.sprites.set (e, new SpriteComponent ("snake", -32 / 2, -32 / 2));
 			this.snakes.set (e, new SnakeComponent ());
 		}
@@ -249,6 +256,14 @@ class GameState {
 		return true;
 	}
 	
+	pos_is_walkable (x: number, y: number): boolean {
+		const tile_x = Math.floor (x / 32);
+		const tile_y = Math.floor (y / 32);
+		const tile_index = tile_y * map_width + tile_x;
+		
+		return map_data [tile_index * 4] == 2;
+	}
+	
 	step (cow_gamepad: CowGamepad) {
 		this.frame_count += 1;
 		
@@ -256,10 +271,18 @@ class GameState {
 		
 		const move_vec = cow_gamepad.move_vec ();
 		
-		kristie_pos.x += kristie_speed * move_vec [0];
-		kristie_pos.y += kristie_speed * move_vec [1];
+		const kristie_new_x = kristie_pos.x + kristie_speed * move_vec [0];
+		const kristie_new_y = kristie_pos.y + kristie_speed * move_vec [1];
 		
-		kristie_pos.x = Math.min (Math.max (kristie_pos.x, map_left), map_right);
+		if (this.pos_is_walkable (kristie_new_x, kristie_new_y)) {
+			this.sprites.get (this.kristie).name = "placeholder-person-glowing";
+			
+			kristie_pos.x = kristie_new_x;
+			kristie_pos.y = kristie_new_y;
+		}
+		else {
+			this.sprites.get (this.kristie).name = "placeholder-person";
+		}
 		
 		let leftest_door: number = null;
 		for (const [entity, door] of this.doors) {
@@ -307,8 +330,8 @@ class GameState {
 				const holder_pos = this.positions.get (snake.held_by);
 				const snake_pos = this.positions.get (entity);
 				
-				snake_pos.x = holder_pos.x;
-				snake_pos.y = holder_pos.y - 32;
+				snake_pos.x = holder_pos.x - 32;
+				snake_pos.y = holder_pos.y;
 			}
 		}
 	}
@@ -506,6 +529,21 @@ function draw (game_state: GameState) {
 	
 	draw_sprite ("placeholder-map", 0, 0);
 	
+	// Tile map
+	
+	for (let y = 0; y < 32; y++) {
+		for (let x = 0; x < map_width; x++) {
+			const index = y * map_width + x;
+			const tile = map_data [index * 4];
+			
+			if (tile == 2) {
+				draw_sprite ("placeholder-open-tile", x * 32, y * 32);
+			}
+		}
+	}
+	
+	// Sprites from the ECS
+	
 	for (const [entity, sprite] of game_state.sprites) {
 		const pos: PosComponent = game_state.positions.get (entity);
 		
@@ -597,9 +635,12 @@ set_running (false);
 
 const sprite_names: string [] = [
 	"placeholder-button",
+	"placeholder-closed-tile",
 	"placeholder-door",
 	"placeholder-map",
+	"placeholder-open-tile",
 	"placeholder-person",
+	"placeholder-person-glowing",
 	"snake",
 ];
 
