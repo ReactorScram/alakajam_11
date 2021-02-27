@@ -71,7 +71,7 @@ class ButtonComponent {
 class GameState {
 	frame_count: number;
 	
-	lara_x: number;
+	lara: number;
 	kristie_x: number;
 	
 	positions: Map <number, PosComponent>;
@@ -81,7 +81,6 @@ class GameState {
 	
 	constructor () {
 		this.frame_count = 0;
-		this.lara_x = map_left;
 		this.kristie_x = map_right;
 		
 		this.positions = new Map ();
@@ -124,6 +123,13 @@ class GameState {
 			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
 			this.buttons.set (b, new ButtonComponent (d));
 		}
+		
+		{
+			let e = create_entity ();
+			this.positions.set (e, new PosComponent (map_left, lara_y));
+			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
+			this.lara = e;
+		}
 	}
 	
 	step (cow_gamepad: CowGamepad) {
@@ -159,7 +165,8 @@ class GameState {
 			lara_max_x = this.positions.get (leftest_door).x - 32;
 		}
 		
-		this.lara_x = Math.min (lara_max_x, this.lara_x + lara_speed);
+		const lara_pos = this.positions.get (this.lara);
+		lara_pos.x = Math.min (lara_max_x, lara_pos.x + lara_speed);
 		
 		if (cow_gamepad.action_x.down_or_just_pressed ()) {
 			let nearest_button: number = null;
@@ -356,8 +363,6 @@ function draw (game_state: GameState) {
 	
 	draw_sprite ("placeholder-map", 0, 0);
 	
-	// Sprites in painter's order
-	
 	for (const [entity, sprite] of game_state.sprites) {
 		const pos: PosComponent = game_state.positions.get (entity);
 		
@@ -368,7 +373,6 @@ function draw (game_state: GameState) {
 		draw_sprite (sprite.name, Math.floor (pos.x + sprite.offset_x), Math.floor (pos.y + sprite.offset_y));
 	}
 	
-	draw_sprite ("placeholder-person", game_state.lara_x - 32 / 2, lara_y - 32 / 2);
 	draw_sprite ("placeholder-person", game_state.kristie_x - 32 / 2, kristie_y - 32 / 2);
 	
 	// UI
