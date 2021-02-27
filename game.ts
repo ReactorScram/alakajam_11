@@ -190,11 +190,10 @@ class ButtonComponent {
 }
 
 interface Ecs {
-	lara: number;
-	
 	positions: Map <number, PosComponent>;
 	sprites: Map <number, SpriteComponent>;
 	snakes: Map <number, SnakeComponent>;
+	laras: Map <number, LaraComponent>;
 	
 	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
 }
@@ -241,7 +240,12 @@ class SnakeComponent {
 			return;
 		}
 		
-		const lara_pos = ecs.positions.get (ecs.lara);
+		const lara = ecs.nearest_entity (entity, ecs.laras, 5 * 32);
+		if (typeof (lara) != "number") {
+			return;
+		}
+		
+		const lara_pos = ecs.positions.get (lara);
 		if (! lara_pos) {
 			return;
 		}
@@ -308,6 +312,74 @@ class SnakeSpawnerComponent {
 	}
 }
 
+class LaraComponent {
+	fixed_step (ecs: Ecs, entity: number) {
+		const lara_pos = ecs.positions.get (entity)!;
+		
+		const tile_x = Math.floor (lara_pos.x / 32);
+		const tile_y = Math.floor (lara_pos.y / 32);
+		const index_me = tile_y * map_width + tile_x;
+		const dist_me = goal_map.get (index_me)!;
+		
+		const neighbors = [
+			[tile_x - 1, tile_y    ],
+			[tile_x + 1, tile_y    ],
+			[tile_x    , tile_y - 1],
+			[tile_x    , tile_y + 1],
+		];
+		
+		let best_dist = dist_me;
+		let best_direction = [0, 0];
+		
+		for (const [n_x, n_y] of neighbors) {
+			const index_nay = n_y * map_width + n_x;
+			const dist_nay = goal_map.get (index_nay);
+			
+			if (typeof (dist_nay) != "number") {
+				continue;
+			}
+			
+			if (dist_nay < best_dist) {
+				best_dist = dist_nay;
+				best_direction = [n_x - tile_x, n_y - tile_y];
+			}
+		}
+		
+		const intra_x = lara_pos.x - tile_x * 32;
+		const intra_y = lara_pos.y - tile_y * 32;
+		
+		let move_vec = [best_direction [0], best_direction [1]];
+		
+		const corner_margin = 12;
+		
+		if (best_direction [0] == 0) {
+			if (intra_x < corner_margin) {
+				move_vec [0] = 1;
+			}
+			else if (intra_x > 32 - corner_margin) {
+				move_vec [0] = -1;
+			}
+		}
+		if (best_direction [1] == 0) {
+			if (intra_y < corner_margin) {
+				move_vec [1] = 1;
+			}
+			else if (intra_y > 32 - corner_margin) {
+				move_vec [1] = -1;
+			}
+		}
+		
+		const move_dist2 = move_vec [0] * move_vec [0] + move_vec [1] * move_vec [1];
+		if (move_dist2 > 0) {
+			const move_dist = Math.sqrt (move_dist2);
+			move_vec = [move_vec [0] / move_dist, move_vec [1] / move_dist];
+			
+			lara_pos.x += move_vec [0] * lara_speed;
+			lara_pos.y += move_vec [1] * lara_speed;
+		}
+	}
+}
+
 class HolderComponent {
 	holding: number | null;
 	
@@ -325,7 +397,6 @@ class GameState {
 	
 	// Fixed root entities
 	
-	lara: number;
 	kristie: number;
 	
 	positions: Map <number, PosComponent>;
@@ -335,6 +406,7 @@ class GameState {
 	snakes: Map <number, SnakeComponent>;
 	snake_spawners: Map <number, SnakeSpawnerComponent>;
 	holders: Map <number, HolderComponent>;
+	laras: Map <number, LaraComponent>;
 	
 	constructor () {
 		this.frame_count = 0;
@@ -346,6 +418,7 @@ class GameState {
 		this.snakes = new Map ();
 		this.snake_spawners = new Map ();
 		this.holders = new Map ();
+		this.laras = new Map ();
 		
 		{
 			let d = create_entity ();
@@ -387,7 +460,7 @@ class GameState {
 			let e = create_entity ();
 			this.positions.set (e, new PosComponent (map_left, lara_y));
 			this.sprites.set (e, new SpriteComponent ("lara", -32 / 2, -32 / 2));
-			this.lara = e;
+			this.laras.set (e, new LaraComponent ());
 		}
 		
 		{
@@ -522,104 +595,6 @@ class GameState {
 			kristie_pos.y = kristie_new_y;
 		}
 		
-		/*
-		let leftest_door: number | null = null;
-		for (const [entity, door] of this.doors) {
-			if (door.open) {
-				continue;
-			}
-			
-			const pos = this.positions.get (entity);
-			if (! pos) {
-				continue;
-			}
-			
-			if (leftest_door === null) {
-				leftest_door = entity;
-			}
-			else if (pos.x < this.positions.get (leftest_door)!.x) {
-				leftest_door = entity;
-			}
-		}
-		
-		let lara_max_x = map_right;
-		if (leftest_door != null) {
-			lara_max_x = this.positions.get (leftest_door)!.x - 16;
-		}
-		*/
-		const lara_pos = this.positions.get (this.lara)!;
-		/*
-		const snake_near_lara = this.nearest_entity (this.lara, this.snakes, 64);
-		if (! snake_near_lara) {
-			const lara_new_x = lara_pos.x + lara_speed;
-			lara_pos.x = Math.min (lara_max_x, lara_new_x);
-		}
-		*/
-		
-		{
-			const tile_x = Math.floor (lara_pos.x / 32);
-			const tile_y = Math.floor (lara_pos.y / 32);
-			const index_me = tile_y * map_width + tile_x;
-			const dist_me = goal_map.get (index_me)!;
-			
-			const neighbors = [
-				[tile_x - 1, tile_y    ],
-				[tile_x + 1, tile_y    ],
-				[tile_x    , tile_y - 1],
-				[tile_x    , tile_y + 1],
-			];
-			
-			let best_dist = dist_me;
-			let best_direction = [0, 0];
-			
-			for (const [n_x, n_y] of neighbors) {
-				const index_nay = n_y * map_width + n_x;
-				const dist_nay = goal_map.get (index_nay);
-				
-				if (typeof (dist_nay) != "number") {
-					continue;
-				}
-				
-				if (dist_nay < best_dist) {
-					best_dist = dist_nay;
-					best_direction = [n_x - tile_x, n_y - tile_y];
-				}
-			}
-			
-			const intra_x = lara_pos.x - tile_x * 32;
-			const intra_y = lara_pos.y - tile_y * 32;
-			
-			let move_vec = [best_direction [0], best_direction [1]];
-			
-			const corner_margin = 12;
-			
-			if (best_direction [0] == 0) {
-				if (intra_x < corner_margin) {
-					move_vec [0] = 1;
-				}
-				else if (intra_x > 32 - corner_margin) {
-					move_vec [0] = -1;
-				}
-			}
-			if (best_direction [1] == 0) {
-				if (intra_y < corner_margin) {
-					move_vec [1] = 1;
-				}
-				else if (intra_y > 32 - corner_margin) {
-					move_vec [1] = -1;
-				}
-			}
-			
-			const move_dist2 = move_vec [0] * move_vec [0] + move_vec [1] * move_vec [1];
-			if (move_dist2 > 0) {
-				const move_dist = Math.sqrt (move_dist2);
-				move_vec = [move_vec [0] / move_dist, move_vec [1] / move_dist];
-				
-				lara_pos.x += move_vec [0] * lara_speed;
-				lara_pos.y += move_vec [1] * lara_speed;
-			}
-		}
-		
 		let action: (() => void) | null = null;
 		
 		if (action === null) {
@@ -645,6 +620,10 @@ class GameState {
 		
 		if (cow_gamepad.action_x.just_pressed && action) {
 			action ();
+		}
+		
+		for (const [entity, lara] of this.laras) {
+			lara.fixed_step (this, entity);
 		}
 		
 		for (const [entity, snake] of this.snakes) {
