@@ -87,6 +87,8 @@ function dijkstra (): Map <number, number> {
 	
 	while (frontier_queue.length > 0) {
 		const [x, y] = frontier_queue.pop ()!;
+		console.log ("Expanding tile " + String (x) + ", " + String (y));
+		
 		const index_me = (y * map_width + x);
 		const dist_me = goal_map.get (index_me)!;
 		
@@ -94,11 +96,10 @@ function dijkstra (): Map <number, number> {
 			[x - 1, y    ],
 			[x + 1, y    ],
 			[x    , y - 1],
-			[     , y + 1],
+			[x    , y + 1],
 		];
 		
-		for (const [n_x_opt, n_y_opt] of neighbors) {
-			const [n_x, n_y] = [n_x_opt!, n_y_opt!];
+		for (const [n_x, n_y] of neighbors) {
 			const index_nay = n_y * map_width + n_x;
 			const tile = new TileInfo (map_data [index_nay * 4]);
 			
