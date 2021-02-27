@@ -1,9 +1,4 @@
 declare let TileMaps: Object;
-const map = TileMaps ["map_2"].layers [0];
-const map_width: number = map.width;
-const map_data = new Uint8Array (window.atob (map.data).split("").map(function(c) {
-    return c.charCodeAt(0); 
-}));
 
 const canvas_element = <HTMLCanvasElement> document.getElementById ("QR4YH2UP");
 const ctx = canvas_element.getContext ('2d')!;
@@ -61,75 +56,6 @@ class TileInfo {
 		}
 	}
 }
-
-function get_tile (x: number, y: number): TileInfo {
-	const tile_x = Math.floor (x / 32);
-	const tile_y = Math.floor (y / 32);
-	const tile_index = tile_y * map_width + tile_x;
-	
-	return new TileInfo (map_data [tile_index * 4]);
-}
-
-function dijkstra (): Map <number, number> {
-	let goal_map: Map <number, number> = new Map ();
-	let frontier_queue: Array <number []> = new Array ();
-	
-	// Set all goals to 0
-	
-	for (let y = 0; y < 32; y++) {
-		for (let x = 0; x < map_width; x++) {
-			const index = (y * map_width + x);
-			const tile = new TileInfo (map_data [index * 4]);
-			
-			if (tile.is_goal) {
-				goal_map.set (index, 0);
-				frontier_queue.push ([x, y]);
-			}
-		}
-	}
-	
-	// Explore frontier
-	
-	while (frontier_queue.length > 0) {
-		const [x, y] = frontier_queue.pop ()!;
-		
-		const index_me = (y * map_width + x);
-		const dist_me = goal_map.get (index_me)!;
-		
-		const neighbors = [
-			[x - 1, y    ],
-			[x + 1, y    ],
-			[x    , y - 1],
-			[x    , y + 1],
-		];
-		
-		for (const [n_x, n_y] of neighbors) {
-			const index_nay = n_y * map_width + n_x;
-			const tile = new TileInfo (map_data [index_nay * 4]);
-			
-			if (! tile.lara_can_walk) {
-				continue;
-			}
-			
-			let dist_nay = goal_map.get (index_nay);
-			
-			if (typeof (dist_nay) == "number") {
-				if (dist_nay > dist_me + 1) {
-					goal_map.set (index_nay, dist_me + 1);
-					frontier_queue.push ([n_x, n_y]);
-				}
-			}
-			else {
-				goal_map.set (index_nay, dist_me + 1);
-				frontier_queue.push ([n_x, n_y]);
-			}
-		}
-	}
-	
-	return goal_map;
-}
-
-const goal_map = dijkstra ();
 
 let last_entity = 0;
 
@@ -190,12 +116,16 @@ class ButtonComponent {
 }
 
 interface Ecs {
+	map_width: number;
+	
 	doors: Map <number, DoorComponent>;
 	holders: Map <number, HolderComponent>;
 	laras: Map <number, LaraComponent>;
 	positions: Map <number, PosComponent>;
 	sprites: Map <number, SpriteComponent>;
 	snakes: Map <number, SnakeComponent>;
+	
+	goal_map: Map <number, number>;
 	
 	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
 }
@@ -333,8 +263,8 @@ class LaraComponent {
 		
 		const tile_x = Math.floor (lara_pos.x / 32);
 		const tile_y = Math.floor (lara_pos.y / 32);
-		const index_me = tile_y * map_width + tile_x;
-		const dist_me = goal_map.get (index_me)!;
+		const index_me = tile_y * ecs.map_width + tile_x;
+		const dist_me = ecs.goal_map.get (index_me)!;
 		
 		const neighbors = [
 			[tile_x - 1, tile_y    ],
@@ -354,7 +284,7 @@ class LaraComponent {
 				const pos = ecs.positions.get (door_e)!;
 				const x = Math.floor (pos.x / 32);
 				const y = Math.floor (pos.y / 32);
-				const index = y * map_width + x;
+				const index = y * ecs.map_width + x;
 				
 				blocked_tiles.set (index, door_e);
 			}
@@ -365,15 +295,15 @@ class LaraComponent {
 				const pos = ecs.positions.get (snake_e)!;
 				const x = Math.floor (pos.x / 32);
 				const y = Math.floor (pos.y / 32);
-				const index = y * map_width + x;
+				const index = y * ecs.map_width + x;
 				
 				blocked_tiles.set (index, snake_e);
 			}
 		}
 		
 		for (const [n_x, n_y] of neighbors) {
-			const index_nay = n_y * map_width + n_x;
-			const dist_nay = goal_map.get (index_nay);
+			const index_nay = n_y * ecs.map_width + n_x;
+			const dist_nay = ecs.goal_map.get (index_nay);
 			
 			if (typeof (dist_nay) != "number") {
 				continue;
@@ -436,12 +366,9 @@ class HolderComponent {
 	}
 }
 
-class GameState {
-	// Non-ECS stuff
-	
-	frame_count: number;
-	button_prompt: string = "";
-	frames_moved: number = 0;
+class LevelState {
+	map_width: number = 1;
+	map_data: Uint8Array;
 	
 	// Fixed root entities
 	
@@ -456,8 +383,13 @@ class GameState {
 	snake_spawners: Map <number, SnakeSpawnerComponent>;
 	sprites: Map <number, SpriteComponent>;
 	
-	constructor () {
-		this.frame_count = 0;
+	goal_map: Map <number, number>;
+	
+	constructor (map) {
+		this.map_width = map.width;
+		this.map_data = new Uint8Array (window.atob (map.data).split("").map(function(c) {
+			return c.charCodeAt(0); 
+		}));
 		
 		this.buttons = new Map ();
 		this.doors = new Map ();
@@ -538,6 +470,77 @@ class GameState {
 				}
 			}
 		}
+		
+		// Build pathfinding map
+		
+		this.goal_map = this.dijkstra ();
+	}
+	
+	get_tile (x: number, y: number): TileInfo {
+		const tile_x = Math.floor (x / 32);
+		const tile_y = Math.floor (y / 32);
+		const tile_index = tile_y * this.map_width + tile_x;
+		
+		return new TileInfo (this.map_data [tile_index * 4]);
+	}
+	
+	dijkstra (): Map <number, number> {
+		let goal_map: Map <number, number> = new Map ();
+		let frontier_queue: Array <number []> = new Array ();
+		
+		// Set all goals to 0
+		
+		for (let y = 0; y < 32; y++) {
+			for (let x = 0; x < this.map_width; x++) {
+				const index = (y * this.map_width + x);
+				const tile = new TileInfo (this.map_data [index * 4]);
+				
+				if (tile.is_goal) {
+					goal_map.set (index, 0);
+					frontier_queue.push ([x, y]);
+				}
+			}
+		}
+		
+		// Explore frontier
+		
+		while (frontier_queue.length > 0) {
+			const [x, y] = frontier_queue.pop ()!;
+			
+			const index_me = (y * this.map_width + x);
+			const dist_me = goal_map.get (index_me)!;
+			
+			const neighbors = [
+				[x - 1, y    ],
+				[x + 1, y    ],
+				[x    , y - 1],
+				[x    , y + 1],
+			];
+			
+			for (const [n_x, n_y] of neighbors) {
+				const index_nay = n_y * this.map_width + n_x;
+				const tile = new TileInfo (this.map_data [index_nay * 4]);
+				
+				if (! tile.lara_can_walk) {
+					continue;
+				}
+				
+				let dist_nay = goal_map.get (index_nay);
+				
+				if (typeof (dist_nay) == "number") {
+					if (dist_nay > dist_me + 1) {
+						goal_map.set (index_nay, dist_me + 1);
+						frontier_queue.push ([n_x, n_y]);
+					}
+				}
+				else {
+					goal_map.set (index_nay, dist_me + 1);
+					frontier_queue.push ([n_x, n_y]);
+				}
+			}
+		}
+		
+		return goal_map;
 	}
 	
 	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null {
@@ -642,15 +645,35 @@ class GameState {
 			snake_pos.y = holder_pos.y;
 		};
 	}
+}
+
+class GameState {
+	// Non-ECS stuff
+	
+	frame_count: number;
+	button_prompt: string = "";
+	frames_moved: number = 0;
+	
+	level_state: LevelState;
+	
+	constructor () {
+		this.frame_count = 0;
+		
+		const map = TileMaps ["map_2"].layers [0];
+		
+		this.level_state = new LevelState (map);
+	}
 	
 	step (cow_gamepad: CowGamepad) {
+		const lvl = this.level_state;
+		
 		this.frame_count += 1;
 		
-		const kristie_pos = this.positions.get (this.kristie)!;
+		const kristie_pos = lvl.positions.get (lvl.kristie)!;
 		
 		const move_vec = cow_gamepad.move_vec ();
 		
-		const kristie_holder = this.holders.get (this.kristie)!;
+		const kristie_holder = lvl.holders.get (lvl.kristie)!;
 		
 		if (move_vec [0] != 0 || move_vec [1] != 0) {
 			kristie_holder.dir_x = move_vec [0];
@@ -666,7 +689,7 @@ class GameState {
 			this.frames_moved += 1;
 		}
 		
-		if (get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
+		if (lvl.get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
 			kristie_pos.x = kristie_new_x;
 			kristie_pos.y = kristie_new_y;
 		}
@@ -674,15 +697,15 @@ class GameState {
 		let action: (() => void) | null = null;
 		
 		if (action === null) {
-			action = this.can_drop_snake (this.kristie);
+			action = lvl.can_drop_snake (lvl.kristie);
 			this.button_prompt = "Space: Drop snake";
 		}
 		if (action === null) {
-			action = this.can_toggle_button (this.kristie);
+			action = lvl.can_toggle_button (lvl.kristie);
 			this.button_prompt = "Space: Open door";
 		}
 		if (action === null) {
-			action = this.can_pick_snake (this.kristie);
+			action = lvl.can_pick_snake (lvl.kristie);
 			this.button_prompt = "Space: Pick up snake";
 		}
 		if (action === null) {
@@ -698,16 +721,16 @@ class GameState {
 			action ();
 		}
 		
-		for (const [entity, lara] of this.laras) {
-			lara.fixed_step (this, entity);
+		for (const [entity, lara] of lvl.laras) {
+			lara.fixed_step (lvl, entity);
 		}
 		
-		for (const [entity, snake] of this.snakes) {
-			snake.fixed_step (this, entity);
+		for (const [entity, snake] of lvl.snakes) {
+			snake.fixed_step (lvl, entity);
 		}
 		
-		for (const [entity, snake_spawner] of this.snake_spawners) {
-			snake_spawner.fixed_step (this, entity);
+		for (const [entity, snake_spawner] of lvl.snake_spawners) {
+			snake_spawner.fixed_step (lvl, entity);
 		}
 	}
 }
@@ -889,6 +912,7 @@ function fixed_step () {
 
 function draw (game_state: GameState) {
 	const scale: number = canvas_element.width / 800;
+	const lvl = game_state.level_state;
 	
 	ctx.resetTransform ();
 	ctx.scale (scale, scale);
@@ -907,9 +931,9 @@ function draw (game_state: GameState) {
 	// Tile map
 	
 	for (let y = 0; y < 32; y++) {
-		for (let x = 0; x < map_width; x++) {
-			const index = y * map_width + x;
-			const tile = map_data [index * 4];
+		for (let x = 0; x < lvl.map_width; x++) {
+			const index = y * lvl.map_width + x;
+			const tile = lvl.map_data [index * 4];
 			
 			const info = new TileInfo (tile);
 			
@@ -917,7 +941,7 @@ function draw (game_state: GameState) {
 				draw_sprite (info.sprite, x * 32, y * 32);
 			}
 			
-			const dijkstra_num = goal_map.get (index);
+			const dijkstra_num = lvl.goal_map.get (index);
 			if (false && typeof (dijkstra_num) == "number") {
 				ctx.font = "15px sans-serif";
 				ctx.fillStyle = "#fff";
@@ -930,8 +954,8 @@ function draw (game_state: GameState) {
 	
 	// Sprites from the ECS
 	
-	for (const [entity, sprite] of game_state.sprites) {
-		const pos: PosComponent = game_state.positions.get (entity)!;
+	for (const [entity, sprite] of lvl.sprites) {
+		const pos: PosComponent = lvl.positions.get (entity)!;
 		
 		if (pos == null) {
 			return;
@@ -954,7 +978,7 @@ function draw (game_state: GameState) {
 	
 	const button_prompt = game_state.button_prompt;
 	if (button_prompt) {
-		const kristie_pos = game_state.positions.get (game_state.kristie)!;
+		const kristie_pos = lvl.positions.get (lvl.kristie)!;
 		
 		const margin = 10;
 		
