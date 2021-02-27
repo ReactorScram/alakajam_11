@@ -30,6 +30,7 @@ const kristie_y: number = 203;
 
 const kristie_speed: number = 2.0;
 const lara_speed: number = 4.0;
+const snake_speed: number = 0.5;
 
 let last_entity = 0;
 
@@ -89,20 +90,66 @@ class ButtonComponent {
 	}
 }
 
+interface Ecs {
+	lara: number;
+	
+	positions: Map <number, PosComponent>;
+	sprites: Map <number, SpriteComponent>;
+	snakes: Map <number, SnakeComponent>;
+	
+	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
+}
+
 class SnakeComponent {
 	held_by: number | null;
 	
 	constructor () {
 		this.held_by = null;
 	}
-}
-
-interface Ecs {
-	positions: Map <number, PosComponent>;
-	sprites: Map <number, SpriteComponent>;
-	snakes: Map <number, SnakeComponent>;
 	
-	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
+	step_held (ecs: Ecs, entity: number) {
+		const holder_pos = ecs.positions.get (this.held_by!);
+		if (! holder_pos) {
+			return;
+		}
+		
+		const snake_pos = ecs.positions.get (entity);
+		if (! snake_pos) {
+			return;
+		}
+		
+		snake_pos.x = holder_pos.x + 32;
+		snake_pos.y = holder_pos.y;
+	}
+	
+	step_free (ecs: Ecs, entity: number) {
+		const snake_pos = ecs.positions.get (entity);
+		if (! snake_pos) {
+			return;
+		}
+		
+		const lara_pos = ecs.positions.get (ecs.lara);
+		if (! lara_pos) {
+			return;
+		}
+		
+		if (snake_pos.dist2 (lara_pos) >= Math.pow (5 * 32, 2)) {
+			return;
+		}
+		
+		if (lara_pos.x < snake_pos.x) {
+			snake_pos.x -= snake_speed;
+		}
+	}
+	
+	fixed_step (ecs: Ecs, entity: number) {
+		if (this.held_by === null) {
+			this.step_free (ecs, entity);
+		}
+		else {
+			this.step_held (ecs, entity);
+		}
+	}
 }
 
 class SnakeSpawnerComponent {
@@ -120,7 +167,7 @@ class SnakeSpawnerComponent {
 			if (this.timer >= 120 && ecs.snakes.size < 10) {
 				let snake = create_entity ();
 				ecs.positions.set (snake, spawner_pos.clone ());
-				ecs.sprites.set (snake, new SpriteComponent ("snake", -32 / 2, -32 / 2));
+				ecs.sprites.set (snake, new SpriteComponent ("snake-1", -32 / 2, -32 / 2));
 				ecs.snakes.set (snake, new SnakeComponent ());
 				
 				console.log ("Spawned snake.");
@@ -419,24 +466,7 @@ class GameState {
 		}
 		
 		for (const [entity, snake] of this.snakes) {
-			if (typeof (snake.held_by) != "number") {
-				continue;
-			}
-			
-			// Beauty is in the pos of the snake holder
-			
-			const holder_pos = this.positions.get (snake.held_by);
-			if (! holder_pos) {
-				continue;
-			}
-			
-			const snake_pos = this.positions.get (entity);
-			if (! snake_pos) {
-				continue;
-			}
-			
-			snake_pos.x = holder_pos.x + 32;
-			snake_pos.y = holder_pos.y;
+			snake.fixed_step (this, entity);
 		}
 		
 		for (const [entity, snake_spawner] of this.snake_spawners) {
@@ -781,7 +811,8 @@ const sprite_names: string [] = [
 	"placeholder-open-tile",
 	"placeholder-person",
 	"placeholder-person-glowing",
-	"snake",
+	"snake-1",
+	"snake-2",
 ];
 
 for (const name of sprite_names) {
