@@ -1,4 +1,4 @@
-let TileMaps: Object;
+declare let TileMaps: Object;
 const map = TileMaps ["map_2"].layers [0];
 const map_width: number = map.width;
 const map_data = new Uint8Array (window.atob (map.data).split("").map(function(c) {
@@ -7,7 +7,7 @@ const map_data = new Uint8Array (window.atob (map.data).split("").map(function(c
 
 
 const canvas_element = <HTMLCanvasElement> document.getElementById ("QR4YH2UP");
-const ctx = canvas_element.getContext ('2d');
+const ctx = canvas_element.getContext ('2d')!;
 
 function resize_canvas (width: number, height: number){
 	canvas_element.width = width;
@@ -181,26 +181,30 @@ class GameState {
 		}
 	}
 	
-	nearest_entity (actor: number, map: Map <number, any>, radius: number): number {
-		const actor_pos = this.positions.get (actor);
+	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null {
+		const actor_pos = this.positions.get (actor)!;
 		
 		let nearest: number | null = null;
 		let nearest_dist2: number | null = null;
 		
 		for (const [entity, button] of map) {
 			const pos = this.positions.get (entity);
+			if (! pos) {
+				continue;
+			}
 			
-			let dist2 = actor_pos.dist2 (pos);
+			const dist2 = actor_pos.dist2 (pos);
+			if (dist2 >= radius * radius) {
+				continue;
+			}
 			
-			if (dist2 < radius * radius) {
-				if (nearest_dist2 == null) {
-					nearest_dist2 = dist2;
-					nearest = entity;
-				}
-				else if (dist2 < nearest_dist2) {
-					nearest_dist2 = dist2;
-					nearest = entity;
-				}
+			if (nearest_dist2 == null) {
+				nearest_dist2 = dist2;
+				nearest = entity;
+			}
+			else if (dist2 < nearest_dist2) {
+				nearest_dist2 = dist2;
+				nearest = entity;
 			}
 		}
 		
@@ -208,48 +212,64 @@ class GameState {
 	}
 	
 	try_toggle_button (actor: number): boolean {
-		let nearest_button: number = this.nearest_entity (actor, this.buttons, 32);
-		
-		if (nearest_button != null) {
-			const button = this.buttons.get (nearest_button);
-			const door = this.doors.get (button.door);
-			
-			door.open = true;
-			return true;
-		}
-		else {
+		const nearest_button = this.nearest_entity (actor, this.buttons, 32);
+		if (typeof (nearest_button) != "number") {
 			return false;
 		}
+		
+		const button = this.buttons.get (nearest_button);
+		if (! button) {
+			return false;
+		}
+		
+		const door = this.doors.get (button.door);
+		if (! door) {
+			return false;
+		}
+		
+		door.open = true;
+		return true;
 	}
 	
 	try_pick_snake (actor: number): boolean {
 		const holder = this.holders.get (actor);
+		if (! holder) {
+			return false;
+		}
 		if (holder.holding != null) {
 			return false;
 		}
 		
-		let nearest_snake: number = this.nearest_entity (actor, this.snakes, 32);
-		
-		if (nearest_snake != null) {
-			const snake = this.snakes.get (nearest_snake);
-			
-			snake.held_by = actor;
-			holder.holding = nearest_snake;
-			
-			return true;
-		}
-		else {
+		const nearest_snake = this.nearest_entity (actor, this.snakes, 32);
+		if (typeof (nearest_snake) != "number") {
 			return false;
 		}
+		
+		const snake = this.snakes.get (nearest_snake);
+		if (! snake) {
+			return false;
+		}
+		
+		snake.held_by = actor;
+		holder.holding = nearest_snake;
+		
+		return true;
 	}
 	
 	try_drop_snake (actor: number): boolean {
 		const holder = this.holders.get (actor);
+		if (! holder) {
+			return false;
+		}
 		if (holder.holding == null) {
 			return false;
 		}
 		
 		const snake = this.snakes.get (holder.holding);
+		if (! snake) {
+			return false;
+		}
+		
 		snake.held_by = null;
 		holder.holding = null;
 		
@@ -267,7 +287,7 @@ class GameState {
 	step (cow_gamepad: CowGamepad) {
 		this.frame_count += 1;
 		
-		const kristie_pos = this.positions.get (this.kristie);
+		const kristie_pos = this.positions.get (this.kristie)!;
 		
 		const move_vec = cow_gamepad.move_vec ();
 		
@@ -275,37 +295,40 @@ class GameState {
 		const kristie_new_y = kristie_pos.y + kristie_speed * move_vec [1];
 		
 		if (this.pos_is_walkable (kristie_new_x, kristie_new_y)) {
-			this.sprites.get (this.kristie).name = "placeholder-person-glowing";
+			this.sprites.get (this.kristie)!.name = "placeholder-person-glowing";
 			
 			kristie_pos.x = kristie_new_x;
 			kristie_pos.y = kristie_new_y;
 		}
 		else {
-			this.sprites.get (this.kristie).name = "placeholder-person";
+			this.sprites.get (this.kristie)!.name = "placeholder-person";
 		}
 		
-		let leftest_door: number = null;
+		let leftest_door: number | null = null;
 		for (const [entity, door] of this.doors) {
 			if (door.open) {
 				continue;
 			}
 			
 			const pos = this.positions.get (entity);
+			if (! pos) {
+				continue;
+			}
 			
-			if (leftest_door == null) {
+			if (leftest_door === null) {
 				leftest_door = entity;
 			}
-			else if (pos.x < this.positions.get (leftest_door).x) {
+			else if (pos.x < this.positions.get (leftest_door)!.x) {
 				leftest_door = entity;
 			}
 		}
 		
 		let lara_max_x = map_right;
 		if (leftest_door != null) {
-			lara_max_x = this.positions.get (leftest_door).x - 32;
+			lara_max_x = this.positions.get (leftest_door)!.x - 32;
 		}
 		
-		const lara_pos = this.positions.get (this.lara);
+		const lara_pos = this.positions.get (this.lara)!;
 		lara_pos.x = Math.min (lara_max_x, lara_pos.x + lara_speed);
 		
 		if (cow_gamepad.action_x.just_pressed) {
@@ -324,15 +347,24 @@ class GameState {
 		}
 		
 		for (const [entity, snake] of this.snakes) {
-			if (snake.held_by != null) {
-				// Beauty is in the pos of the snake holder
-				
-				const holder_pos = this.positions.get (snake.held_by);
-				const snake_pos = this.positions.get (entity);
-				
-				snake_pos.x = holder_pos.x - 32;
-				snake_pos.y = holder_pos.y;
+			if (typeof (snake.held_by) != "number") {
+				continue;
 			}
+			
+			// Beauty is in the pos of the snake holder
+			
+			const holder_pos = this.positions.get (snake.held_by);
+			if (! holder_pos) {
+				continue;
+			}
+			
+			const snake_pos = this.positions.get (entity);
+			if (! snake_pos) {
+				continue;
+			}
+			
+			snake_pos.x = holder_pos.x + 32;
+			snake_pos.y = holder_pos.y;
 		}
 	}
 }
@@ -422,7 +454,7 @@ class CowGamepad {
 		return [x, y];
 	}
 	
-	decode (code: string): CowKey {
+	decode (code: string): CowKey | null {
 		if (code == "ArrowDown") {
 			return this.d_down;
 		}
@@ -545,7 +577,7 @@ function draw (game_state: GameState) {
 	// Sprites from the ECS
 	
 	for (const [entity, sprite] of game_state.sprites) {
-		const pos: PosComponent = game_state.positions.get (entity);
+		const pos: PosComponent = game_state.positions.get (entity)!;
 		
 		if (pos == null) {
 			return;
