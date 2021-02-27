@@ -29,7 +29,7 @@ const lara_y: number = 334;
 const kristie_y: number = 203;
 
 const kristie_speed: number = 2.0;
-const lara_speed: number = 4.0;
+const lara_speed: number = 1.0;
 const snake_speed: number = 0.5;
 
 class TileInfo {
@@ -522,7 +522,7 @@ class GameState {
 		else {
 			this.sprites.get (this.kristie)!.name = "placeholder-person";
 		}
-		
+		/*
 		let leftest_door: number | null = null;
 		for (const [entity, door] of this.doors) {
 			if (door.open) {
@@ -546,13 +546,78 @@ class GameState {
 		if (leftest_door != null) {
 			lara_max_x = this.positions.get (leftest_door)!.x - 16;
 		}
-		
+		*/
 		const lara_pos = this.positions.get (this.lara)!;
-		
+		/*
 		const snake_near_lara = this.nearest_entity (this.lara, this.snakes, 64);
 		if (! snake_near_lara) {
 			const lara_new_x = lara_pos.x + lara_speed;
 			lara_pos.x = Math.min (lara_max_x, lara_new_x);
+		}
+		*/
+		
+		{
+			const tile_x = Math.floor (lara_pos.x / 32);
+			const tile_y = Math.floor (lara_pos.y / 32);
+			const index_me = tile_y * map_width + tile_x;
+			const dist_me = goal_map.get (index_me)!;
+			
+			const neighbors = [
+				[tile_x - 1, tile_y    ],
+				[tile_x + 1, tile_y    ],
+				[tile_x    , tile_y - 1],
+				[tile_x    , tile_y + 1],
+			];
+			
+			let best_dist = dist_me;
+			let best_direction = [0, 0];
+			
+			for (const [n_x, n_y] of neighbors) {
+				const index_nay = n_y * map_width + n_x;
+				const dist_nay = goal_map.get (index_nay);
+				
+				if (typeof (dist_nay) != "number") {
+					continue;
+				}
+				
+				if (dist_nay < best_dist) {
+					best_dist = dist_nay;
+					best_direction = [n_x - tile_x, n_y - tile_y];
+				}
+			}
+			
+			const intra_x = lara_pos.x - tile_x * 32;
+			const intra_y = lara_pos.y - tile_y * 32;
+			
+			let move_vec = [best_direction [0], best_direction [1]];
+			
+			const corner_margin = 12;
+			
+			if (best_direction [0] == 0) {
+				if (intra_x < corner_margin) {
+					move_vec [0] = 1;
+				}
+				else if (intra_x > 32 - corner_margin) {
+					move_vec [0] = -1;
+				}
+			}
+			if (best_direction [1] == 0) {
+				if (intra_y < corner_margin) {
+					move_vec [1] = 1;
+				}
+				else if (intra_y > 32 - corner_margin) {
+					move_vec [1] = -1;
+				}
+			}
+			
+			const move_dist2 = move_vec [0] * move_vec [0] + move_vec [1] * move_vec [1];
+			if (move_dist2 > 0) {
+				const move_dist = Math.sqrt (move_dist2);
+				move_vec = [move_vec [0] / move_dist, move_vec [1] / move_dist];
+				
+				lara_pos.x += move_vec [0] * lara_speed;
+				lara_pos.y += move_vec [1] * lara_speed;
+			}
 		}
 		
 		let action: (() => void) | null = null;
