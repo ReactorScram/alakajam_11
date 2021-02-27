@@ -36,6 +36,7 @@ class TileInfo {
 	sprite: string = "";
 	lara_can_walk: boolean = false;
 	kristie_can_walk: boolean = false;
+	is_goal: boolean = false;
 	
 	constructor (n: number) {
 		if (n == 2) {
@@ -47,14 +48,83 @@ class TileInfo {
 			this.sprite = "cup";
 			this.lara_can_walk = true;
 			this.kristie_can_walk = true;
+			this.is_goal = true;
 		}
 		else if (n == 4) {
 			this.sprite = "door-staff";
-			this.lara_can_walk = false;
 			this.kristie_can_walk = true;
 		}
 	}
 }
+
+function get_tile (x: number, y: number): TileInfo {
+	const tile_x = Math.floor (x / 32);
+	const tile_y = Math.floor (y / 32);
+	const tile_index = tile_y * map_width + tile_x;
+	
+	return new TileInfo (map_data [tile_index * 4]);
+}
+
+function dijkstra (): Map <number, number> {
+	let goal_map: Map <number, number> = new Map ();
+	let frontier_queue: Array <number []> = new Array ();
+	
+	// Set all goals to 0
+	
+	for (let y = 0; y < 32; y++) {
+		for (let x = 0; x < map_width; x++) {
+			const index = (y * map_width + x);
+			const tile = new TileInfo (map_data [index * 4]);
+			
+			if (tile.is_goal) {
+				goal_map.set (index, 0);
+				frontier_queue.push ([x, y]);
+			}
+		}
+	}
+	
+	// Explore frontier
+	
+	while (frontier_queue.length > 0) {
+		const [x, y] = frontier_queue.pop ()!;
+		const index_me = (y * map_width + x);
+		const dist_me = goal_map.get (index_me)!;
+		
+		const neighbors = [
+			[x - 1, y    ],
+			[x + 1, y    ],
+			[x    , y - 1],
+			[     , y + 1],
+		];
+		
+		for (const [n_x_opt, n_y_opt] of neighbors) {
+			const [n_x, n_y] = [n_x_opt!, n_y_opt!];
+			const index_nay = n_y * map_width + n_x;
+			const tile = new TileInfo (map_data [index_nay * 4]);
+			
+			if (! tile.lara_can_walk) {
+				continue;
+			}
+			
+			let dist_nay = goal_map.get (index_nay);
+			
+			if (typeof (dist_nay) == "number") {
+				if (dist_nay > dist_me + 1) {
+					goal_map.set (index_nay, dist_me + 1);
+					frontier_queue.push ([n_x, n_y]);
+				}
+			}
+			else {
+				goal_map.set (index_nay, dist_me + 1);
+				frontier_queue.push ([n_x, n_y]);
+			}
+		}
+	}
+	
+	return goal_map;
+}
+
+const goal_map = dijkstra ();
 
 let last_entity = 0;
 
@@ -428,14 +498,6 @@ class GameState {
 		};
 	}
 	
-	get_tile (x: number, y: number): TileInfo {
-		const tile_x = Math.floor (x / 32);
-		const tile_y = Math.floor (y / 32);
-		const tile_index = tile_y * map_width + tile_x;
-		
-		return new TileInfo (map_data [tile_index * 4]);
-	}
-	
 	step (cow_gamepad: CowGamepad) {
 		this.frame_count += 1;
 		
@@ -450,7 +512,7 @@ class GameState {
 			this.frames_moved += 1;
 		}
 		
-		if (this.get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
+		if (get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
 			this.sprites.get (this.kristie)!.name = "placeholder-person-glowing";
 			
 			kristie_pos.x = kristie_new_x;
@@ -733,6 +795,15 @@ function draw (game_state: GameState) {
 			if (info.sprite) {
 				draw_sprite (info.sprite, x * 32, y * 32);
 			}
+			
+			const dijkstra_num = goal_map.get (index);
+			if (typeof (dijkstra_num) == "number") {
+				ctx.font = "15px sans-serif";
+				ctx.fillStyle = "#fff";
+				ctx.textAlign = "center";
+				
+				ctx.fillText (String (dijkstra_num), x * 32 + 16, y * 32 + 20);
+			}
 		}
 	}
 	
@@ -872,6 +943,10 @@ const sprite_names: string [] = [
 	"placeholder-person-glowing",
 	"snake-1",
 	"snake-2",
+	"tile-up",
+	"tile-down",
+	"tile-left",
+	"tile-right",
 ];
 
 for (const name of sprite_names) {
