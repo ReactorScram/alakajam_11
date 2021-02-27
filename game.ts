@@ -29,7 +29,7 @@ const lara_y: number = 334;
 const kristie_y: number = 203;
 
 const kristie_speed: number = 2.0;
-const lara_speed: number = 1.0;
+const lara_speed: number = 2.0;
 const snake_speed: number = 0.5;
 
 class TileInfo {
@@ -190,10 +190,12 @@ class ButtonComponent {
 }
 
 interface Ecs {
+	doors: Map <number, DoorComponent>;
+	holders: Map <number, HolderComponent>;
+	laras: Map <number, LaraComponent>;
 	positions: Map <number, PosComponent>;
 	sprites: Map <number, SpriteComponent>;
 	snakes: Map <number, SnakeComponent>;
-	laras: Map <number, LaraComponent>;
 	
 	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
 }
@@ -201,14 +203,25 @@ interface Ecs {
 class SnakeComponent {
 	held_by: number | null;
 	anim_timer: number = 0;
+	alive: boolean = true;
 	
 	constructor () {
 		this.held_by = null;
 	}
 	
 	step_held (ecs: Ecs, entity: number) {
-		const holder_pos = ecs.positions.get (this.held_by!);
+		const held_by = this.held_by;
+		if (typeof (held_by) != "number") {
+			return;
+		}
+		
+		const holder_pos = ecs.positions.get (held_by);
 		if (! holder_pos) {
+			return;
+		}
+		
+		const holder = ecs.holders.get (held_by);
+		if (! holder) {
 			return;
 		}
 		
@@ -225,8 +238,10 @@ class SnakeComponent {
 		snake_sprite.name = "snake-1";
 		this.anim_timer = 0;
 		
-		snake_pos.x = holder_pos.x + 32;
-		snake_pos.y = holder_pos.y;
+		const hold_dist = 16;
+		
+		snake_pos.x = holder_pos.x + holder.dir_x * hold_dist;
+		snake_pos.y = holder_pos.y + holder.dir_y * hold_dist;
 	}
 	
 	step_free (ecs: Ecs, entity: number) {
@@ -331,11 +346,40 @@ class LaraComponent {
 		let best_dist = dist_me;
 		let best_direction = [0, 0];
 		
+		// Check for doors blocking our path
+		
+		let blocked_tiles: Map <number, number> = new Map ();
+		for (const [door_e, door] of ecs.doors) {
+			if (! door.open) {
+				const pos = ecs.positions.get (door_e)!;
+				const x = Math.floor (pos.x / 32);
+				const y = Math.floor (pos.y / 32);
+				const index = y * map_width + x;
+				
+				blocked_tiles.set (index, door_e);
+			}
+		}
+		
+		for (const [snake_e, snake] of ecs.snakes) {
+			if (snake.alive) {
+				const pos = ecs.positions.get (snake_e)!;
+				const x = Math.floor (pos.x / 32);
+				const y = Math.floor (pos.y / 32);
+				const index = y * map_width + x;
+				
+				blocked_tiles.set (index, snake_e);
+			}
+		}
+		
 		for (const [n_x, n_y] of neighbors) {
 			const index_nay = n_y * map_width + n_x;
 			const dist_nay = goal_map.get (index_nay);
 			
 			if (typeof (dist_nay) != "number") {
+				continue;
+			}
+			
+			if (typeof (blocked_tiles.get (index_nay)) == "number") {
 				continue;
 			}
 			
@@ -382,6 +426,8 @@ class LaraComponent {
 
 class HolderComponent {
 	holding: number | null;
+	dir_x: number;
+	dir_y: number;
 	
 	constructor () {
 		this.holding = null;
@@ -399,30 +445,30 @@ class GameState {
 	
 	kristie: number;
 	
-	positions: Map <number, PosComponent>;
-	sprites: Map <number, SpriteComponent>;
 	buttons: Map <number, ButtonComponent>;
 	doors: Map <number, DoorComponent>;
-	snakes: Map <number, SnakeComponent>;
-	snake_spawners: Map <number, SnakeSpawnerComponent>;
 	holders: Map <number, HolderComponent>;
 	laras: Map <number, LaraComponent>;
+	positions: Map <number, PosComponent>;
+	snakes: Map <number, SnakeComponent>;
+	snake_spawners: Map <number, SnakeSpawnerComponent>;
+	sprites: Map <number, SpriteComponent>;
 	
 	constructor () {
 		this.frame_count = 0;
 		
-		this.positions = new Map ();
-		this.sprites = new Map ();
 		this.buttons = new Map ();
 		this.doors = new Map ();
-		this.snakes = new Map ();
-		this.snake_spawners = new Map ();
 		this.holders = new Map ();
 		this.laras = new Map ();
+		this.positions = new Map ();
+		this.snakes = new Map ();
+		this.snake_spawners = new Map ();
+		this.sprites = new Map ();
 		
 		{
 			let d = create_entity ();
-			this.positions.set (d, new PosComponent (200.0, lara_y));
+			this.positions.set (d, new PosComponent (6 * 32 + 16, lara_y));
 			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
 			this.doors.set (d, new DoorComponent (false));
 			
@@ -434,7 +480,7 @@ class GameState {
 		
 		{
 			let d = create_entity ();
-			this.positions.set (d, new PosComponent (400.0, lara_y));
+			this.positions.set (d, new PosComponent (12 * 32 + 16, lara_y));
 			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
 			this.doors.set (d, new DoorComponent (false));
 			
@@ -446,7 +492,7 @@ class GameState {
 		
 		{
 			let d = create_entity ();
-			this.positions.set (d, new PosComponent (600.0, lara_y));
+			this.positions.set (d, new PosComponent (18 * 32 + 16, lara_y));
 			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
 			this.doors.set (d, new DoorComponent (false));
 			
@@ -565,14 +611,21 @@ class GameState {
 			return null;
 		}
 		
-		const snake = this.snakes.get (holder.holding);
+		const snake_e = holder.holding;
+		
+		const snake = this.snakes.get (snake_e);
 		if (! snake) {
 			return null;
 		}
 		
+		const holder_pos = this.positions.get (actor)!;
+		const snake_pos = this.positions.get (snake_e)!;
+		
 		return function () {
 			snake.held_by = null;
 			holder.holding = null;
+			snake_pos.x = holder_pos.x;
+			snake_pos.y = holder_pos.y;
 		};
 	}
 	
@@ -582,6 +635,13 @@ class GameState {
 		const kristie_pos = this.positions.get (this.kristie)!;
 		
 		const move_vec = cow_gamepad.move_vec ();
+		
+		const kristie_holder = this.holders.get (this.kristie)!;
+		
+		if (move_vec [0] != 0 || move_vec [1] != 0) {
+			kristie_holder.dir_x = move_vec [0];
+			kristie_holder.dir_y = move_vec [1];
+		}
 		
 		const kristie_new_x = kristie_pos.x + kristie_speed * move_vec [0];
 		const kristie_new_y = kristie_pos.y + kristie_speed * move_vec [1];
