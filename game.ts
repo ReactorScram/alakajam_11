@@ -1,6 +1,7 @@
 const canvas_element = <HTMLCanvasElement> document.getElementById ("QR4YH2UP");
 const ctx = canvas_element.getContext ('2d');
 
+
 function resize_canvas (width: number, height: number){
 	canvas_element.width = width;
 	canvas_element.height = height;
@@ -8,8 +9,8 @@ function resize_canvas (width: number, height: number){
 	draw (game_state);
 }
 
-let raf_id: number = null;
-let last_ms: number = null;
+let raf_id: number | null = null;
+let last_ms: number | null = null;
 let throbber_frame: number = 0;
 let fps_num: number = 60;
 let fps_den: number = 1000;
@@ -75,6 +76,22 @@ class ButtonComponent {
 	}
 }
 
+class SnakeComponent {
+	held_by: number | null;
+	
+	constructor () {
+		this.held_by = null;
+	}
+}
+
+class HolderComponent {
+	holding: number | null;
+	
+	constructor () {
+		this.holding = null;
+	}
+}
+
 class GameState {
 	frame_count: number;
 	
@@ -85,6 +102,8 @@ class GameState {
 	sprites: Map <number, SpriteComponent>;
 	buttons: Map <number, ButtonComponent>;
 	doors: Map <number, DoorComponent>;
+	snakes: Map <number, SnakeComponent>;
+	holders: Map <number, HolderComponent>;
 	
 	constructor () {
 		this.frame_count = 0;
@@ -93,6 +112,8 @@ class GameState {
 		this.sprites = new Map ();
 		this.buttons = new Map ();
 		this.doors = new Map ();
+		this.snakes = new Map ();
+		this.holders = new Map ();
 		
 		{
 			let d = create_entity ();
@@ -141,8 +162,91 @@ class GameState {
 			let e = create_entity ();
 			this.positions.set (e, new PosComponent (map_right, kristie_y));
 			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
+			this.holders.set (e, new HolderComponent ());
 			this.kristie = e;
 		}
+		
+		{
+			let e = create_entity ();
+			this.positions.set (e, new PosComponent (400, 500));
+			this.sprites.set (e, new SpriteComponent ("snake", -32 / 2, -32 / 2));
+			this.snakes.set (e, new SnakeComponent ());
+		}
+	}
+	
+	nearest_entity (actor: number, map: Map <number, any>, radius: number): number {
+		const actor_pos = this.positions.get (actor);
+		
+		let nearest: number | null = null;
+		let nearest_dist2: number | null = null;
+		
+		for (const [entity, button] of map) {
+			const pos = this.positions.get (entity);
+			
+			let dist2 = actor_pos.dist2 (pos);
+			
+			if (dist2 < radius * radius) {
+				if (nearest_dist2 == null) {
+					nearest_dist2 = dist2;
+					nearest = entity;
+				}
+				else if (dist2 < nearest_dist2) {
+					nearest_dist2 = dist2;
+					nearest = entity;
+				}
+			}
+		}
+		
+		return nearest;
+	}
+	
+	try_toggle_button (actor: number): boolean {
+		let nearest_button: number = this.nearest_entity (actor, this.buttons, 32);
+		
+		if (nearest_button != null) {
+			const button = this.buttons.get (nearest_button);
+			const door = this.doors.get (button.door);
+			
+			door.open = true;
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	
+	try_pick_snake (actor: number): boolean {
+		const holder = this.holders.get (actor);
+		if (holder.holding != null) {
+			return false;
+		}
+		
+		let nearest_snake: number = this.nearest_entity (actor, this.snakes, 32);
+		
+		if (nearest_snake != null) {
+			const snake = this.snakes.get (nearest_snake);
+			
+			snake.held_by = actor;
+			holder.holding = nearest_snake;
+			
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	
+	try_drop_snake (actor: number): boolean {
+		const holder = this.holders.get (actor);
+		if (holder.holding == null) {
+			return false;
+		}
+		
+		const snake = this.snakes.get (holder.holding);
+		snake.held_by = null;
+		holder.holding = null;
+		
+		return true;
 	}
 	
 	step (cow_gamepad: CowGamepad) {
@@ -150,12 +254,10 @@ class GameState {
 		
 		const kristie_pos = this.positions.get (this.kristie);
 		
-		if (cow_gamepad.d_left.down_or_just_pressed ()) {
-			kristie_pos.x -= kristie_speed;
-		}
-		if (cow_gamepad.d_right.down_or_just_pressed ()) {
-			kristie_pos.x += kristie_speed;
-		}
+		const move_vec = cow_gamepad.move_vec ();
+		
+		kristie_pos.x += kristie_speed * move_vec [0];
+		kristie_pos.y += kristie_speed * move_vec [1];
 		
 		kristie_pos.x = Math.min (Math.max (kristie_pos.x, map_left), map_right);
 		
@@ -183,32 +285,30 @@ class GameState {
 		const lara_pos = this.positions.get (this.lara);
 		lara_pos.x = Math.min (lara_max_x, lara_pos.x + lara_speed);
 		
-		if (cow_gamepad.action_x.down_or_just_pressed ()) {
-			let nearest_button: number = null;
-			let nearest_button_dist2: number = null;
-			
-			for (const [entity, button] of this.buttons) {
-				const pos = this.positions.get (entity);
-				
-				let dist2 = kristie_pos.dist2 (pos);
-				
-				if (dist2 < 32 * 32) {
-					if (nearest_button_dist2 == null) {
-						nearest_button_dist2 = dist2;
-						nearest_button = entity;
-					}
-					else if (dist2 < nearest_button_dist2) {
-						nearest_button_dist2 = dist2;
-						nearest_button = entity;
-					}
-				}
+		if (cow_gamepad.action_x.just_pressed) {
+			if (this.try_drop_snake (this.kristie)) {
+				console.log ("Dropped snake.");
 			}
-			
-			if (nearest_button != null) {
-				const button = this.buttons.get (nearest_button);
-				const door = this.doors.get (button.door);
+			else if (this.try_toggle_button (this.kristie)) {
 				
-				door.open = true;
+			}
+			else if (this.try_pick_snake (this.kristie)) {
+				console.log ("Picked up snake.");
+			}
+			else {
+				console.log ("No action here!");
+			}
+		}
+		
+		for (const [entity, snake] of this.snakes) {
+			if (snake.held_by != null) {
+				// Beauty is in the pos of the snake holder
+				
+				const holder_pos = this.positions.get (snake.held_by);
+				const snake_pos = this.positions.get (entity);
+				
+				snake_pos.x = holder_pos.x;
+				snake_pos.y = holder_pos.y - 32;
 			}
 		}
 	}
@@ -271,7 +371,35 @@ class CowGamepad {
 		this.action_x = new CowKey ();
 	}
 	
-	decode (code: String): CowKey {
+	move_vec (): number [] {
+		let x = 0.0;
+		let y = 0.0;
+		
+		if (this.d_left.down_or_just_pressed ()) {
+			x -= 1.0;
+		}
+		if (this.d_right.down_or_just_pressed ()) {
+			x += 1.0;
+		}
+		if (this.d_up.down_or_just_pressed ()) {
+			y -= 1.0;
+		}
+		if (this.d_down.down_or_just_pressed ()) {
+			y += 1.0;
+		}
+		
+		const dist2 = x * x + y * y;
+		
+		if (dist2 > 1.0) {
+			const dist = Math.sqrt (dist2);
+			x = x / dist;
+			y = y / dist;
+		}
+		
+		return [x, y];
+	}
+	
+	decode (code: string): CowKey {
 		if (code == "ArrowDown") {
 			return this.d_down;
 		}
@@ -284,22 +412,23 @@ class CowGamepad {
 		else if (code == "ArrowRight") {
 			return this.d_right;
 		}
-		else if (code == "KeyX") {
+		else if (code == "Space") {
 			return this.action_x;
 		}
 		else {
+			console.log ("Unknown keycode " + code);
 			return null;
 		}
 	}
 	
-	keydown (code: String) {
+	keydown (code: string) {
 		const key = this.decode (code);
 		if (key != null) {
 			key.keydown ();
 		}
 	}
 	
-	keyup (code: String) {
+	keyup (code: string) {
 		const key = this.decode (code);
 		if (key != null) {
 			key.keyup ();
@@ -322,7 +451,6 @@ canvas_element.addEventListener ("keydown", event => {
 		return;
 	}
 	
-	console.log ("keydown " + String ());
 	cow_gamepad.keydown (event.code);
 	
 	event.preventDefault ();
@@ -461,10 +589,10 @@ function play () {
 
 function pause () {
 	set_running (false);
-	step (null);
+	draw (game_state);
 }
 
-step (null);
+draw (game_state);
 set_running (false);
 
 const sprite_names: string [] = [
@@ -472,6 +600,7 @@ const sprite_names: string [] = [
 	"placeholder-door",
 	"placeholder-map",
 	"placeholder-person",
+	"snake",
 ];
 
 for (const name of sprite_names) {
@@ -482,7 +611,7 @@ for (const name of sprite_names) {
 		createImageBitmap (img)
 		.then ((value) => {
 			sprites [name] = value;
-			step (null);
+			draw (game_state);
 		});
 	});
 }
