@@ -40,7 +40,7 @@ class TileInfo {
 	
 	constructor (n: number) {
 		if (n == 2) {
-			this.sprite = "placeholder-open-tile";
+			this.sprite = "tile-ruins";
 			this.lara_can_walk = true;
 			this.kristie_can_walk = true;
 		}
@@ -52,6 +52,10 @@ class TileInfo {
 		}
 		else if (n == 4) {
 			this.sprite = "door-staff";
+			this.kristie_can_walk = true;
+		}
+		else if (n == 5) {
+			this.sprite = "tile-backrooms";
 			this.kristie_can_walk = true;
 		}
 	}
@@ -382,14 +386,14 @@ class GameState {
 		{
 			let e = create_entity ();
 			this.positions.set (e, new PosComponent (map_left, lara_y));
-			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
+			this.sprites.set (e, new SpriteComponent ("lara", -32 / 2, -32 / 2));
 			this.lara = e;
 		}
 		
 		{
 			let e = create_entity ();
 			this.positions.set (e, new PosComponent (32 * 1 + 16, 32 + 16));
-			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
+			this.sprites.set (e, new SpriteComponent ("kristie", -32 / 2, -32 / 2));
 			this.holders.set (e, new HolderComponent ());
 			this.kristie = e;
 		}
@@ -514,14 +518,10 @@ class GameState {
 		}
 		
 		if (get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
-			this.sprites.get (this.kristie)!.name = "placeholder-person-glowing";
-			
 			kristie_pos.x = kristie_new_x;
 			kristie_pos.y = kristie_new_y;
 		}
-		else {
-			this.sprites.get (this.kristie)!.name = "placeholder-person";
-		}
+		
 		/*
 		let leftest_door: number | null = null;
 		for (const [entity, door] of this.doors) {
@@ -1000,19 +1000,17 @@ const sprite_names: string [] = [
 	"cup",
 	"door-glow",
 	"door-staff",
+	"kristie",
+	"lara",
 	"placeholder-button",
 	"placeholder-closed-tile",
 	"placeholder-door",
 	"placeholder-map",
 	"placeholder-open-tile",
-	"placeholder-person",
-	"placeholder-person-glowing",
 	"snake-1",
 	"snake-2",
-	"tile-up",
-	"tile-down",
-	"tile-left",
-	"tile-right",
+	"tile-backrooms",
+	"tile-ruins",
 ];
 
 for (const name of sprite_names) {
