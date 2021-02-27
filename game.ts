@@ -5,7 +5,6 @@ const map_data = new Uint8Array (window.atob (map.data).split("").map(function(c
     return c.charCodeAt(0); 
 }));
 
-
 const canvas_element = <HTMLCanvasElement> document.getElementById ("QR4YH2UP");
 const ctx = canvas_element.getContext ('2d')!;
 
@@ -22,15 +21,6 @@ let throbber_frame: number = 0;
 let fps_num: number = 60;
 let fps_den: number = 1000;
 let timestep_accum: number = fps_den / 2;
-
-const map_left: number = 50;
-const map_right: number = 720;
-const lara_y: number = 334;
-const kristie_y: number = 203;
-
-const kristie_speed: number = 2.0;
-const lara_speed: number = 2.0;
-const snake_speed: number = 0.5;
 
 class TileInfo {
 	sprite: string = "";
@@ -280,6 +270,8 @@ class SnakeComponent {
 		}
 		
 		if (lara_pos.x < snake_pos.x) {
+			const snake_speed: number = 0.5;
+			
 			snake_pos.x -= snake_speed;
 			
 			this.anim_timer -= 1;
@@ -425,6 +417,8 @@ class LaraComponent {
 		if (move_dist2 > 0) {
 			const move_dist = Math.sqrt (move_dist2);
 			move_vec = [move_vec [0] / move_dist, move_vec [1] / move_dist];
+			
+			const lara_speed: number = 2.0;
 			
 			lara_pos.x += move_vec [0] * lara_speed;
 			lara_pos.y += move_vec [1] * lara_speed;
@@ -662,6 +656,8 @@ class GameState {
 			kristie_holder.dir_x = move_vec [0];
 			kristie_holder.dir_y = move_vec [1];
 		}
+		
+		const kristie_speed: number = 2.0;
 		
 		const kristie_new_x = kristie_pos.x + kristie_speed * move_vec [0];
 		const kristie_new_y = kristie_pos.y + kristie_speed * move_vec [1];
