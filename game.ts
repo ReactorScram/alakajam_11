@@ -20,16 +20,110 @@ const map_right: number = 720;
 const lara_y: number = 203;
 const kristie_y: number = 334;
 
-const kristie_speed: number = 2.0;
+const kristie_speed: number = 4.0;
+const lara_speed: number = 4.0;
+
+let last_entity = 0;
+
+function create_entity () {
+	last_entity += 1;
+	return last_entity;
+}
+
+class PosComponent {
+	x: number;
+	y: number;
+	
+	constructor (x: number, y: number) {
+		this.x = x;
+		this.y = y;
+	}
+}
+
+class SpriteComponent {
+	name: string;
+	offset_x: number;
+	offset_y: number;
+	
+	constructor (name: string, offset_x: number, offset_y: number) {
+		this.name = name;
+		this.offset_x = offset_x;
+		this.offset_y = offset_y;
+	}
+}
+
+class DoorComponent {
+	open: boolean;
+	
+	constructor (open: boolean) {
+		this.open = open;
+	}
+}
+
+class ButtonComponent {
+	door: number;
+	
+	constructor (door: number) {
+		this.door = door;
+	}
+}
 
 class GameState {
 	frame_count: number;
 	
+	lara_x: number;
 	kristie_x: number;
+	
+	positions: Map <number, PosComponent>;
+	sprites: Map <number, SpriteComponent>;
+	buttons: Map <number, ButtonComponent>;
+	doors: Map <number, DoorComponent>;
 	
 	constructor () {
 		this.frame_count = 0;
+		this.lara_x = map_left;
 		this.kristie_x = map_right;
+		
+		this.positions = new Map ();
+		this.sprites = new Map ();
+		this.buttons = new Map ();
+		this.doors = new Map ();
+		
+		{
+			let d = create_entity ();
+			this.positions.set (d, new PosComponent (200.0, lara_y));
+			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
+			this.doors.set (d, new DoorComponent (false));
+			
+			let b = create_entity ();
+			this.positions.set (b, new PosComponent (200.0, kristie_y));
+			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
+			this.buttons.set (b, new ButtonComponent (d));
+		}
+		
+		{
+			let d = create_entity ();
+			this.positions.set (d, new PosComponent (400.0, lara_y));
+			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
+			this.doors.set (d, new DoorComponent (false));
+			
+			let b = create_entity ();
+			this.positions.set (b, new PosComponent (400.0, kristie_y));
+			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
+			this.buttons.set (b, new ButtonComponent (d));
+		}
+		
+		{
+			let d = create_entity ();
+			this.positions.set (d, new PosComponent (600.0, lara_y));
+			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
+			this.doors.set (d, new DoorComponent (false));
+			
+			let b = create_entity ();
+			this.positions.set (b, new PosComponent (600.0, kristie_y));
+			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
+			this.buttons.set (b, new ButtonComponent (d));
+		}
 	}
 	
 	step (cow_gamepad: CowGamepad) {
@@ -43,6 +137,58 @@ class GameState {
 		}
 		
 		this.kristie_x = Math.min (Math.max (this.kristie_x, map_left), map_right);
+		
+		let leftest_door: number = null;
+		for (const [entity, door] of this.doors) {
+			if (door.open) {
+				continue;
+			}
+			
+			const pos = this.positions.get (entity);
+			
+			if (leftest_door == null) {
+				leftest_door = entity;
+			}
+			else if (pos.x < this.positions.get (leftest_door).x) {
+				leftest_door = entity;
+			}
+		}
+		
+		let lara_max_x = map_right;
+		if (leftest_door != null) {
+			lara_max_x = this.positions.get (leftest_door).x - 32;
+		}
+		
+		this.lara_x = Math.min (lara_max_x, this.lara_x + lara_speed);
+		
+		if (cow_gamepad.action_x.down_or_just_pressed ()) {
+			let nearest_button: number = null;
+			let nearest_button_dist2: number = null;
+			
+			for (const [entity, button] of this.buttons) {
+				const pos = this.positions.get (entity);
+				
+				let dist2 = Math.pow (this.kristie_x - pos.x, 2) + Math.pow (kristie_y - pos.y, 2);
+				
+				if (dist2 < 32 * 32) {
+					if (nearest_button_dist2 == null) {
+						nearest_button_dist2 = dist2;
+						nearest_button = entity;
+					}
+					else if (dist2 < nearest_button_dist2) {
+						nearest_button_dist2 = dist2;
+						nearest_button = entity;
+					}
+				}
+			}
+			
+			if (nearest_button != null) {
+				const button = this.buttons.get (nearest_button);
+				const door = this.doors.get (button.door);
+				
+				door.open = true;
+			}
+		}
 	}
 }
 
@@ -212,7 +358,17 @@ function draw (game_state: GameState) {
 	
 	// Sprites in painter's order
 	
-	draw_sprite ("placeholder-person", map_left - 32 / 2, lara_y - 32 / 2);
+	for (const [entity, sprite] of game_state.sprites) {
+		const pos: PosComponent = game_state.positions.get (entity);
+		
+		if (pos == null) {
+			return;
+		}
+		
+		draw_sprite (sprite.name, Math.floor (pos.x + sprite.offset_x), Math.floor (pos.y + sprite.offset_y));
+	}
+	
+	draw_sprite ("placeholder-person", game_state.lara_x - 32 / 2, lara_y - 32 / 2);
 	draw_sprite ("placeholder-person", game_state.kristie_x - 32 / 2, kristie_y - 32 / 2);
 	
 	// UI
@@ -295,6 +451,8 @@ step (null);
 set_running (false);
 
 const sprite_names: string [] = [
+	"placeholder-button",
+	"placeholder-door",
 	"placeholder-map",
 	"placeholder-person",
 ];
