@@ -222,69 +222,70 @@ class GameState {
 		return nearest;
 	}
 	
-	try_toggle_button (actor: number): boolean {
+	can_toggle_button (actor: number): (() => void) | null {
 		const nearest_button = this.nearest_entity (actor, this.buttons, 32);
 		if (typeof (nearest_button) != "number") {
-			return false;
+			return null;
 		}
 		
 		const button = this.buttons.get (nearest_button);
 		if (! button) {
-			return false;
+			return null;
 		}
 		
 		const door = this.doors.get (button.door);
 		if (! door) {
-			return false;
+			return null;
 		}
 		
-		door.open = true;
-		return true;
+		return function () {
+			door.open = true;
+		};
 	}
 	
-	try_pick_snake (actor: number): boolean {
+	can_pick_snake (actor: number): (() => void) | null {
 		const holder = this.holders.get (actor);
 		if (! holder) {
-			return false;
+			return null;
 		}
 		if (holder.holding != null) {
-			return false;
+			return null;
 		}
 		
 		const nearest_snake = this.nearest_entity (actor, this.snakes, 32);
 		if (typeof (nearest_snake) != "number") {
-			return false;
+			return null;
 		}
 		
 		const snake = this.snakes.get (nearest_snake);
 		if (! snake) {
-			return false;
+			return null;
 		}
 		
-		snake.held_by = actor;
-		holder.holding = nearest_snake;
-		
-		return true;
+		return function () {
+			snake.held_by = actor;
+			holder.holding = nearest_snake;
+		};
 	}
 	
-	try_drop_snake (actor: number): boolean {
+	can_drop_snake (actor: number): (() => void) | null {
 		const holder = this.holders.get (actor);
 		if (! holder) {
-			return false;
+			return null;
 		}
 		if (holder.holding == null) {
-			return false;
+			return null;
 		}
 		
 		const snake = this.snakes.get (holder.holding);
 		if (! snake) {
-			return false;
+			return null;
 		}
 		
-		snake.held_by = null;
-		holder.holding = null;
-		
-		return true;
+		return function () {
+			snake.held_by = null;
+			holder.holding = null;
+		};
 	}
 	
 	pos_is_walkable (x: number, y: number): boolean {
@@ -340,21 +341,27 @@ class GameState {
 		}
 		
 		const lara_pos = this.positions.get (this.lara)!;
-		lara_pos.x = Math.min (lara_max_x, lara_pos.x + lara_speed);
 		
-		if (cow_gamepad.action_x.just_pressed) {
-			if (this.try_drop_snake (this.kristie)) {
-				console.log ("Dropped snake.");
-			}
-			else if (this.try_toggle_button (this.kristie)) {
-				
-			}
-			else if (this.try_pick_snake (this.kristie)) {
-				console.log ("Picked up snake.");
-			}
-			else {
-				console.log ("No action here!");
-			}
+		const snake_near_lara = this.nearest_entity (this.lara, this.snakes, 64);
+		if (! snake_near_lara) {
+			const lara_new_x = lara_pos.x + lara_speed;
+			lara_pos.x = Math.min (lara_max_x, lara_new_x);
+		}
+		
+		let action: (() => void) | null = null;
+		
+		if (action === null) {
+			action = this.can_drop_snake (this.kristie);
+		}
+		if (action === null) {
+			action = this.can_toggle_button (this.kristie);
+		}
+		if (action === null) {
+			action = this.can_pick_snake (this.kristie);
+		}
+		
+		if (cow_gamepad.action_x.just_pressed && action) {
+			action ();
 		}
 		
 		for (const [entity, snake] of this.snakes) {
