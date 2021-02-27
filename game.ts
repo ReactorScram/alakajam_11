@@ -38,6 +38,13 @@ class PosComponent {
 		this.x = x;
 		this.y = y;
 	}
+	
+	dist2 (o: PosComponent): number {
+		const diff_x = this.x - o.x;
+		const diff_y = this.y - o.y;
+		
+		return diff_x * diff_x + diff_y * diff_y;
+	}
 }
 
 class SpriteComponent {
@@ -72,7 +79,7 @@ class GameState {
 	frame_count: number;
 	
 	lara: number;
-	kristie_x: number;
+	kristie: number;
 	
 	positions: Map <number, PosComponent>;
 	sprites: Map <number, SpriteComponent>;
@@ -81,7 +88,6 @@ class GameState {
 	
 	constructor () {
 		this.frame_count = 0;
-		this.kristie_x = map_right;
 		
 		this.positions = new Map ();
 		this.sprites = new Map ();
@@ -130,19 +136,28 @@ class GameState {
 			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
 			this.lara = e;
 		}
+		
+		{
+			let e = create_entity ();
+			this.positions.set (e, new PosComponent (map_right, kristie_y));
+			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
+			this.kristie = e;
+		}
 	}
 	
 	step (cow_gamepad: CowGamepad) {
 		this.frame_count += 1;
 		
+		const kristie_pos = this.positions.get (this.kristie);
+		
 		if (cow_gamepad.d_left.down_or_just_pressed ()) {
-			this.kristie_x -= kristie_speed;
+			kristie_pos.x -= kristie_speed;
 		}
 		if (cow_gamepad.d_right.down_or_just_pressed ()) {
-			this.kristie_x += kristie_speed;
+			kristie_pos.x += kristie_speed;
 		}
 		
-		this.kristie_x = Math.min (Math.max (this.kristie_x, map_left), map_right);
+		kristie_pos.x = Math.min (Math.max (kristie_pos.x, map_left), map_right);
 		
 		let leftest_door: number = null;
 		for (const [entity, door] of this.doors) {
@@ -175,7 +190,7 @@ class GameState {
 			for (const [entity, button] of this.buttons) {
 				const pos = this.positions.get (entity);
 				
-				let dist2 = Math.pow (this.kristie_x - pos.x, 2) + Math.pow (kristie_y - pos.y, 2);
+				let dist2 = kristie_pos.dist2 (pos);
 				
 				if (dist2 < 32 * 32) {
 					if (nearest_button_dist2 == null) {
@@ -372,8 +387,6 @@ function draw (game_state: GameState) {
 		
 		draw_sprite (sprite.name, Math.floor (pos.x + sprite.offset_x), Math.floor (pos.y + sprite.offset_y));
 	}
-	
-	draw_sprite ("placeholder-person", game_state.kristie_x - 32 / 2, kristie_y - 32 / 2);
 	
 	// UI
 	
