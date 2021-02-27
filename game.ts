@@ -145,6 +145,7 @@ class GameState {
 	
 	frame_count: number;
 	button_prompt: string = "";
+	frames_moved: number = 0;
 	
 	// Fixed root entities
 	
@@ -344,6 +345,10 @@ class GameState {
 		const kristie_new_x = kristie_pos.x + kristie_speed * move_vec [0];
 		const kristie_new_y = kristie_pos.y + kristie_speed * move_vec [1];
 		
+		if (! (move_vec [0] == 0.0 && move_vec [1] == 0.0)) {
+			this.frames_moved += 1;
+		}
+		
 		if (this.pos_is_walkable (kristie_new_x, kristie_new_y)) {
 			this.sprites.get (this.kristie)!.name = "placeholder-person-glowing";
 			
@@ -401,7 +406,12 @@ class GameState {
 			this.button_prompt = "Space: Pick up snake";
 		}
 		if (action === null) {
-			this.button_prompt = "";
+			if (this.frames_moved < 60) {
+				this.button_prompt = "Arrow keys: Move";
+			}
+			else {
+				this.button_prompt = "";
+			}
 		}
 		
 		if (cow_gamepad.action_x.just_pressed && action) {
