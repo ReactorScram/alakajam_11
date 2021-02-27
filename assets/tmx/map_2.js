@@ -120,7 +120,7 @@
                         {
                          "name":"controls",
                          "type":"object",
-                         "value":1
+                         "value":7
                         }],
                  "rotation":0,
                  "type":"button",
@@ -128,6 +128,18 @@
                  "width":0,
                  "x":659,
                  "y":275.333333333333
+                }, 
+                {
+                 "height":0,
+                 "id":7,
+                 "name":"",
+                 "point":true,
+                 "rotation":0,
+                 "type":"door",
+                 "visible":true,
+                 "width":0,
+                 "x":496,
+                 "y":338
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -136,7 +148,7 @@
          "y":0
         }],
  "nextlayerid":3,
- "nextobjectid":7,
+ "nextobjectid":8,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.4.3",

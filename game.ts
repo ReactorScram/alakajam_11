@@ -387,7 +387,7 @@ class LevelState {
 	
 	constructor (map) {
 		this.map_width = map.width;
-		this.map_data = new Uint8Array (window.atob (map.data).split("").map(function(c) {
+		this.map_data = new Uint8Array (window.atob (map.layers [0].data).split("").map(function(c) {
 			return c.charCodeAt(0); 
 		}));
 		
@@ -400,7 +400,7 @@ class LevelState {
 		this.snake_spawners = new Map ();
 		this.sprites = new Map ();
 		
-		const map_objects = TileMaps ["map_2"].layers [1];
+		const map_objects = map.layers [1];
 		
 		// From Tiled ID to game ID
 		
@@ -419,8 +419,21 @@ class LevelState {
 			
 			if (tiled_type == "door") {
 				this.positions.set (e, pos);
-				this.sprites.set (e, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
-				this.doors.set (e, new DoorComponent (false));
+				
+				const door = new DoorComponent (false);
+				const sprite = new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2);
+				
+				sprite.name_func = function () {
+					if (door.open) {
+						return "door-open";
+					}
+					else {
+						return "placeholder-door";
+					}
+				};
+				
+				this.sprites.set (e, sprite);
+				this.doors.set (e, door);
 			}
 			else if (tiled_type == "button") {
 				this.positions.set (e, pos);
@@ -658,9 +671,10 @@ class GameState {
 	
 	constructor () {
 		this.frame_count = 0;
-		
-		const map = TileMaps ["map_2"].layers [0];
-		
+	}
+	
+	load_map (name: string) {
+		const map = TileMaps [name];
 		this.level_state = new LevelState (map);
 	}
 	
@@ -736,6 +750,11 @@ class GameState {
 }
 
 let game_state = new GameState ();
+
+function load_map (name: string) {
+	game_state.load_map (name);
+	draw (game_state);
+}
 
 let running: boolean = false;
 
@@ -942,7 +961,7 @@ function draw (game_state: GameState) {
 	const tile_start_y = Math.floor (offset_y / 32) + 0;
 	const tile_stop_y = tile_start_y + 20;
 	const tile_start_x = Math.floor (offset_x / 32) + 0;
-	const tile_stop_x = tile_start_x + 25;
+	const tile_stop_x = tile_start_x + 26;
 	
 	for (let y = tile_start_y; y < tile_stop_y; y++) {
 		for (let x = tile_start_x; x < tile_stop_x; x++) {
@@ -1087,12 +1106,14 @@ function pause () {
 	draw (game_state);
 }
 
-draw (game_state);
+load_map ("map_2");
+
 set_running (false);
 
 const sprite_names: string [] = [
 	"cup",
 	"door-glow",
+	"door-open",
 	"door-staff",
 	"kristie",
 	"lara",
