@@ -97,8 +97,39 @@ class SnakeComponent {
 	}
 }
 
+interface Ecs {
+	positions: Map <number, PosComponent>;
+	sprites: Map <number, SpriteComponent>;
+	snakes: Map <number, SnakeComponent>;
+	
+	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
+}
+
 class SnakeSpawnerComponent {
-	timer: number = 0;
+	timer: number = 1000;
+	
+	fixed_step (ecs: Ecs, entity: number) {
+		const spawner_pos = ecs.positions.get (entity);
+		if (! spawner_pos) {
+			return;
+		}
+		
+		const nearest_snake = ecs.nearest_entity (entity, ecs.snakes, 32);
+		if (! nearest_snake) {
+			this.timer += 1;
+			if (this.timer >= 120 && ecs.snakes.size < 10) {
+				let snake = create_entity ();
+				ecs.positions.set (snake, spawner_pos.clone ());
+				ecs.sprites.set (snake, new SpriteComponent ("snake", -32 / 2, -32 / 2));
+				ecs.snakes.set (snake, new SnakeComponent ());
+				
+				console.log ("Spawned snake.");
+			}
+		}
+		else {
+			this.timer = 0;
+		}
+	}
 }
 
 class HolderComponent {
@@ -110,7 +141,12 @@ class HolderComponent {
 }
 
 class GameState {
+	// Non-ECS stuff
+	
 	frame_count: number;
+	button_prompt: string = "";
+	
+	// Fixed root entities
 	
 	lara: number;
 	kristie: number;
@@ -179,7 +215,7 @@ class GameState {
 		
 		{
 			let e = create_entity ();
-			this.positions.set (e, new PosComponent (32 + 16, 32 + 16));
+			this.positions.set (e, new PosComponent (0 + 16, 32 + 16));
 			this.sprites.set (e, new SpriteComponent ("placeholder-person", -32 / 2, -32 / 2));
 			this.holders.set (e, new HolderComponent ());
 			this.kristie = e;
@@ -187,8 +223,10 @@ class GameState {
 		
 		{
 			let e = create_entity ();
-			this.positions.set (e, new PosComponent (400, 100));
+			this.positions.set (e, new PosComponent (32 + 16, 32 + 16));
 			this.snake_spawners.set (e, new SnakeSpawnerComponent ());
+			
+			this.snake_spawners.get (e)!.fixed_step (this, e);
 		}
 	}
 	
@@ -352,12 +390,18 @@ class GameState {
 		
 		if (action === null) {
 			action = this.can_drop_snake (this.kristie);
+			this.button_prompt = "Space: Drop snake";
 		}
 		if (action === null) {
 			action = this.can_toggle_button (this.kristie);
+			this.button_prompt = "Space: Open door";
 		}
 		if (action === null) {
 			action = this.can_pick_snake (this.kristie);
+			this.button_prompt = "Space: Pick up snake";
+		}
+		if (action === null) {
+			this.button_prompt = "";
 		}
 		
 		if (cow_gamepad.action_x.just_pressed && action) {
@@ -386,26 +430,7 @@ class GameState {
 		}
 		
 		for (const [entity, snake_spawner] of this.snake_spawners) {
-			const spawner_pos = this.positions.get (entity);
-			if (! spawner_pos) {
-				continue;
-			}
-			
-			const nearest_snake = this.nearest_entity (entity, this.snakes, 32);
-			if (! nearest_snake) {
-				snake_spawner.timer += 1;
-				if (snake_spawner.timer >= 120 && this.snakes.size < 10) {
-					let snake = create_entity ();
-					this.positions.set (snake, spawner_pos.clone ());
-					this.sprites.set (snake, new SpriteComponent ("snake", -32 / 2, -32 / 2));
-					this.snakes.set (snake, new SnakeComponent ());
-					
-					console.log ("Spawned snake.");
-				}
-			}
-			else {
-				snake_spawner.timer = 0;
-			}
+			snake_spawner.fixed_step (this, entity);
 		}
 	}
 }
@@ -637,6 +662,30 @@ function draw (game_state: GameState) {
 	
 	// UI
 	
+	ctx.font = "20px sans-serif";
+	
+	const button_prompt = game_state.button_prompt;
+	if (button_prompt) {
+		const kristie_pos = game_state.positions.get (game_state.kristie)!;
+		
+		const margin = 10;
+		
+		const metrics = ctx.measureText (button_prompt);
+		
+		const half_width = metrics.width / 2 + margin;
+		const half_height = 20 / 2 + margin;
+		
+		const x = Math.floor (Math.max (half_width, Math.min (800 - half_width, kristie_pos.x + 0)));
+		const y = Math.floor (Math.max (half_height, Math.min (600 - half_height, kristie_pos.y + 40)));
+		
+		ctx.fillStyle = "#00000080";
+		ctx.fillRect (x - half_width, y - half_height, half_width * 2, half_height * 2);
+		
+		ctx.fillStyle = "#fff";
+		ctx.textAlign = "center";
+		ctx.fillText (button_prompt, x, y + 20 * 0.25);
+	}
+	
 	ctx.fillStyle ="#000";
 	
 	if (throbber_frame == 0) {
@@ -647,12 +696,12 @@ function draw (game_state: GameState) {
 	}
 	
 	if (! running) {
-		ctx.fillStyle = "#000";
-		ctx.fillRect (800 / 2 - 150 / 2, 600 / 2 - 50 / 2, 150, 50);
+		ctx.fillStyle = "#000000a0";
+		ctx.fillRect (800 / 2 - 180 / 2, 600 / 2 - 50 / 2, 180, 50);
 		
 		ctx.fillStyle = "#fff";
 		ctx.textAlign = "center";
-		ctx.fillText ("Click to resume", 800 / 2, 600 / 2);
+		ctx.fillText ("Click to resume", 800 / 2, 600 / 2 + 20 * 0.25);
 	}
 }
 
