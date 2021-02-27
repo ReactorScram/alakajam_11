@@ -102,6 +102,7 @@ interface Ecs {
 
 class SnakeComponent {
 	held_by: number | null;
+	anim_timer: number = 0;
 	
 	constructor () {
 		this.held_by = null;
@@ -118,6 +119,14 @@ class SnakeComponent {
 			return;
 		}
 		
+		const snake_sprite = ecs.sprites.get (entity);
+		if (! snake_sprite) {
+			return;
+		}
+		
+		snake_sprite.name = "snake-1";
+		this.anim_timer = 0;
+		
 		snake_pos.x = holder_pos.x + 32;
 		snake_pos.y = holder_pos.y;
 	}
@@ -125,6 +134,11 @@ class SnakeComponent {
 	step_free (ecs: Ecs, entity: number) {
 		const snake_pos = ecs.positions.get (entity);
 		if (! snake_pos) {
+			return;
+		}
+		
+		const snake_sprite = ecs.sprites.get (entity);
+		if (! snake_sprite) {
 			return;
 		}
 		
@@ -139,6 +153,22 @@ class SnakeComponent {
 		
 		if (lara_pos.x < snake_pos.x) {
 			snake_pos.x -= snake_speed;
+			
+			this.anim_timer -= 1;
+			if (this.anim_timer <= 0) {
+				this.anim_timer = 60;
+			}
+			
+			if (this.anim_timer >= 30) {
+				snake_sprite.name = "snake-2";
+			}
+			else {
+				snake_sprite.name = "snake-1";
+			}
+		}
+		else {
+			snake_sprite.name = "snake-1";
+			this.anim_timer = 0;
 		}
 	}
 	
