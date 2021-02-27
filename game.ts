@@ -58,6 +58,17 @@ class TileInfo {
 			this.sprite = "tile-backrooms";
 			this.kristie_can_walk = true;
 		}
+		else if (n == 6) {
+			// Door
+			this.sprite = "tile-ruins";
+			this.lara_can_walk = true;
+			this.kristie_can_walk = true;
+		}
+		else if (n == 7) {
+			this.sprite = "tile-ruins-crud";
+			this.lara_can_walk = true;
+			this.kristie_can_walk = true;
+		}
 	}
 }
 
@@ -91,7 +102,6 @@ function dijkstra (): Map <number, number> {
 	
 	while (frontier_queue.length > 0) {
 		const [x, y] = frontier_queue.pop ()!;
-		console.log ("Expanding tile " + String (x) + ", " + String (y));
 		
 		const index_me = (y * map_width + x);
 		const dist_me = goal_map.get (index_me)!;
@@ -317,8 +327,6 @@ class SnakeSpawnerComponent {
 				ecs.positions.set (snake, spawner_pos.clone ());
 				ecs.sprites.set (snake, new SpriteComponent ("snake-1", -32 / 2, -32 / 2));
 				ecs.snakes.set (snake, new SnakeComponent ());
-				
-				console.log ("Spawned snake.");
 			}
 		}
 		else {
@@ -466,63 +474,75 @@ class GameState {
 		this.snake_spawners = new Map ();
 		this.sprites = new Map ();
 		
-		{
-			let d = create_entity ();
-			this.positions.set (d, new PosComponent (6 * 32 + 16, lara_y));
-			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
-			this.doors.set (d, new DoorComponent (false));
+		const map_objects = TileMaps ["map_2"].layers [1];
+		
+		// From Tiled ID to game ID
+		
+		const id_map: Map <number, number> = new Map ();
+		
+		// Create all objects
+		
+		for (const obj of map_objects.objects) {
+			const tiled_id = obj ["id"];
+			const x = obj ["x"];
+			const y = obj ["y"];
+			const tiled_type = obj ["type"];
 			
-			let b = create_entity ();
-			this.positions.set (b, new PosComponent (200.0, kristie_y));
-			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
-			this.buttons.set (b, new ButtonComponent (d));
-		}
-		
-		{
-			let d = create_entity ();
-			this.positions.set (d, new PosComponent (12 * 32 + 16, lara_y));
-			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
-			this.doors.set (d, new DoorComponent (false));
+			const e = create_entity ();
+			const pos = new PosComponent (x, y);
 			
-			let b = create_entity ();
-			this.positions.set (b, new PosComponent (400.0, kristie_y));
-			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
-			this.buttons.set (b, new ButtonComponent (d));
-		}
-		
-		{
-			let d = create_entity ();
-			this.positions.set (d, new PosComponent (18 * 32 + 16, lara_y));
-			this.sprites.set (d, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
-			this.doors.set (d, new DoorComponent (false));
+			if (tiled_type == "door") {
+				this.positions.set (e, pos);
+				this.sprites.set (e, new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2));
+				this.doors.set (e, new DoorComponent (false));
+			}
+			else if (tiled_type == "button") {
+				this.positions.set (e, pos);
+				this.sprites.set (e, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
+			}
+			else if (tiled_type == "spawn_lara") {
+				this.positions.set (e, pos);
+				this.sprites.set (e, new SpriteComponent ("lara", -32 / 2, -32 / 2));
+				this.laras.set (e, new LaraComponent ());
+			}
+			else if (tiled_type == "spawn_kristie") {
+				this.positions.set (e, pos);
+				this.sprites.set (e, new SpriteComponent ("kristie", -32 / 2, -32 / 2));
+				this.holders.set (e, new HolderComponent ());
+				this.kristie = e;
+			}
+			else if (tiled_type == "spawn_snakes") {
+				this.positions.set (e, pos);
+				this.snake_spawners.set (e, new SnakeSpawnerComponent ());
+				this.snake_spawners.get (e)!.fixed_step (this, e);
+			}
 			
-			let b = create_entity ();
-			this.positions.set (b, new PosComponent (600.0, kristie_y));
-			this.sprites.set (b, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
-			this.buttons.set (b, new ButtonComponent (d));
+			id_map.set (tiled_id, e);
 		}
 		
-		{
-			let e = create_entity ();
-			this.positions.set (e, new PosComponent (map_left, lara_y));
-			this.sprites.set (e, new SpriteComponent ("lara", -32 / 2, -32 / 2));
-			this.laras.set (e, new LaraComponent ());
-		}
+		// Link up objects using id_map
 		
-		{
-			let e = create_entity ();
-			this.positions.set (e, new PosComponent (32 * 1 + 16, 32 + 16));
-			this.sprites.set (e, new SpriteComponent ("kristie", -32 / 2, -32 / 2));
-			this.holders.set (e, new HolderComponent ());
-			this.kristie = e;
-		}
-		
-		{
-			let e = create_entity ();
-			this.positions.set (e, new PosComponent (32 * 2 + 16, 32 + 16));
-			this.snake_spawners.set (e, new SnakeSpawnerComponent ());
+		for (const obj of map_objects.objects) {
+			const tiled_id = obj ["id"];
+			const tiled_type = obj ["type"];
+			const game_id = id_map.get (tiled_id);
+			if (typeof (game_id) != 'number') {
+				continue;
+			}
 			
-			this.snake_spawners.get (e)!.fixed_step (this, e);
+			if (tiled_type == "button") {
+				for (const prop of obj ["properties"]) {
+					if (prop ["name"] == "controls") {
+						const controlled_tiled_id = prop ["value"];
+						const controlled_game_id = id_map.get (controlled_tiled_id);
+						if (typeof (controlled_game_id) != 'number') {
+							continue;
+						}
+						
+						this.buttons.set (game_id, new ButtonComponent (controlled_game_id));
+					}
+				}
+			}
 		}
 	}
 	
@@ -902,7 +922,7 @@ function draw (game_state: GameState) {
 			}
 			
 			const dijkstra_num = goal_map.get (index);
-			if (typeof (dijkstra_num) == "number") {
+			if (false && typeof (dijkstra_num) == "number") {
 				ctx.font = "15px sans-serif";
 				ctx.fillStyle = "#fff";
 				ctx.textAlign = "center";
@@ -1050,6 +1070,7 @@ const sprite_names: string [] = [
 	"snake-2",
 	"tile-backrooms",
 	"tile-ruins",
+	"tile-ruins-crud",
 ];
 
 for (const name of sprite_names) {
