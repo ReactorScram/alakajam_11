@@ -1410,6 +1410,7 @@ const sprite_names: string [] = [
 	"placeholder-open-tile",
 	"snake-1",
 	"snake-2",
+	"snake-dead",
 	"tile-backrooms",
 	"tile-ruins",
 	"tile-ruins-crud",
