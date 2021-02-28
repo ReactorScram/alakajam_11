@@ -26,6 +26,9 @@
    <point/>
   </object>
   <object id="5" type="cup" x="561.333" y="337.333">
+   <properties>
+    <property name="spawns_boulder" type="bool" value="false"/>
+   </properties>
    <point/>
   </object>
  </objectgroup>

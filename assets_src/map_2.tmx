@@ -20,7 +20,7 @@
    </properties>
    <point/>
   </object>
-  <object id="3" type="spawn_kristie" x="78.6667" y="275.333">
+  <object id="3" type="spawn_kristie" x="721.667" y="273.333">
    <point/>
   </object>
   <object id="4" type="spawn_lara" x="48" y="334">
@@ -29,7 +29,7 @@
   <object id="5" type="spawn_snakes" x="273.333" y="244">
    <point/>
   </object>
-  <object id="6" type="button" x="659" y="275.333">
+  <object id="6" type="button" x="500" y="267.333">
    <properties>
     <property name="controls" type="object" value="7"/>
    </properties>
@@ -39,6 +39,9 @@
    <point/>
   </object>
   <object id="8" type="cup" x="720" y="338">
+   <properties>
+    <property name="spawns_boulder" type="bool" value="true"/>
+   </properties>
    <point/>
   </object>
   <object id="9" type="garbage" x="207" y="338">

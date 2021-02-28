@@ -9,6 +9,14 @@
   module.exports = data;
  }})("map_1",
 { "compressionlevel":-1,
+ "editorsettings":
+    {
+     "export":
+        {
+         "format":"js",
+         "target":"map_1.js"
+        }
+    },
  "height":128,
  "infinite":false,
  "layers":[
@@ -36,6 +44,12 @@
                  "id":1,
                  "name":"",
                  "point":true,
+                 "properties":[
+                        {
+                         "name":"spawns_boulder",
+                         "type":"bool",
+                         "value":false
+                        }],
                  "rotation":0,
                  "type":"cup",
                  "visible":true,

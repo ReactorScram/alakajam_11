@@ -84,8 +84,8 @@
                  "type":"spawn_kristie",
                  "visible":true,
                  "width":0,
-                 "x":78.6666666666667,
-                 "y":275.333333333333
+                 "x":721.666666666667,
+                 "y":273.333333333333
                 }, 
                 {
                  "height":0,
@@ -126,8 +126,8 @@
                  "type":"button",
                  "visible":true,
                  "width":0,
-                 "x":659,
-                 "y":275.333333333333
+                 "x":500,
+                 "y":267.333333333333
                 }, 
                 {
                  "height":0,
@@ -146,6 +146,12 @@
                  "id":8,
                  "name":"",
                  "point":true,
+                 "properties":[
+                        {
+                         "name":"spawns_boulder",
+                         "type":"bool",
+                         "value":true
+                        }],
                  "rotation":0,
                  "type":"cup",
                  "visible":true,

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.4" tiledversion="1.4.3" orientation="orthogonal" renderorder="right-down" width="128" height="128" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="10">
+ <editorsettings>
+  <export target="../assets/tmx/map_1.js" format="js"/>
+ </editorsettings>
  <tileset firstgid="1" source="tileset.tsx"/>
  <layer id="1" name="Tile Layer 1" width="128" height="128">
   <data encoding="base64">
@@ -8,6 +11,9 @@
  </layer>
  <objectgroup id="2" name="Object Layer 1">
   <object id="1" type="cup" x="690.667" y="206.667">
+   <properties>
+    <property name="spawns_boulder" type="bool" value="false"/>
+   </properties>
    <point/>
   </object>
   <object id="2" type="spawn_kristie" x="621.333" y="204">

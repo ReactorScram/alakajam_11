@@ -26,6 +26,13 @@ const state_6_boulder_beat = "6 boulder beat";
 const state_7_boulder = "7 boulder";
 const state_8_victory = "8 victory";
 
+const map_playlist = [
+	"tutorial",
+	"map_1",
+	"map_2",
+];
+let map_index = 0;
+
 class TileInfo {
 	sprite: string = "";
 	lara_can_walk: boolean = false;
@@ -119,7 +126,7 @@ class ButtonComponent {
 }
 
 class CupComponent {
-	
+	spawns_boulder: boolean = false;
 }
 
 interface Ecs {
@@ -320,6 +327,7 @@ class LaraComponent {
 		const flee_to = ecs.lara_ant_trail.get (index_me);
 		if (! flee_to) {
 			ecs.state = state_8_victory;
+			ecs.transition_timer = 120;
 			for (const [entity, cup] of ecs.cups) {
 				const sprite = ecs.sprites.get (entity)!;
 				sprite.name = "boulder-dead";
@@ -448,6 +456,9 @@ class LaraComponent {
 		else if (lvl.state == state_7_boulder) {
 			this.step_flee (lvl, entity, 4.0);
 		}
+		else if (lvl.state == state_8_victory) {
+			
+		}
 	}
 }
 
@@ -548,7 +559,15 @@ class LevelState {
 				id_map.set (tiled_id, e);
 			}
 			else if (tiled_type == "cup") {
-				this.cups.set (e, new CupComponent ());
+				const cup = new CupComponent ();
+				
+				for (const prop of obj ["properties"]) {
+					if (prop ["name"] == "spawns_boulder") {
+						cup.spawns_boulder = prop ["value"];
+					}
+				}
+				
+				this.cups.set (e, cup);
 				this.sprites.set (e, new SpriteComponent ("cup", -32 / 2, -32 / 2));
 			}
 			else if (tiled_type == "garbage") {
@@ -954,27 +973,45 @@ class GameState {
 				lvl.transition_timer = 60;
 			}
 			else if (lvl.state == state_5_flee) {
-				lvl.state = state_6_boulder_beat;
-				lvl.transition_timer = 60;
-				
-				// I'm out of time, so the boulder is implemented as a cup
-				// which is a Lara wearing a boulder suit.
+				let boulders_should_spawn = false;
 				
 				for (const [e, cup] of lvl.cups) {
-					const sprite = lvl.sprites.get (e)!;
-					sprite.name_func = function () {
-						if (game_state.frame_count % 30 < 15) {
-							return "boulder-1";
-						}
-						else {
-							return "boulder-2";
-						}
-					};
-					lvl.laras.set (e, new LaraComponent ());
+					if (cup.spawns_boulder) {
+						boulders_should_spawn = true;
+					}
+				}
+				
+				if (boulders_should_spawn) {
+					lvl.state = state_6_boulder_beat;
+					lvl.transition_timer = 60;
+					
+					// I'm out of time, so the boulder is implemented as a cup
+					// which is a Lara wearing a boulder suit.
+					
+					for (const [e, cup] of lvl.cups) {
+						const sprite = lvl.sprites.get (e)!;
+						sprite.name_func = function () {
+							if (game_state.frame_count % 30 < 15) {
+								return "boulder-1";
+							}
+							else {
+								return "boulder-2";
+							}
+						};
+						lvl.laras.set (e, new LaraComponent ());
+					}
+				}
+				else {
+					lvl.state = state_8_victory;
+					lvl.transition_timer = 120;
 				}
 			}
 			else if (lvl.state == state_6_boulder_beat) {
 				lvl.state = state_7_boulder;
+			}
+			else if (lvl.state == state_8_victory) {
+				map_index = Math.min (map_index + 1, map_playlist.length - 1);
+				load_map (map_playlist [map_index]);
 			}
 		}
 	}
@@ -1267,6 +1304,10 @@ function draw (game_state: GameState) {
 		draw_textbox (button_prompt, kristie_pos.x - offset_x, kristie_pos.y + 40 - offset_y);
 	}
 	
+	if (lvl.state == state_8_victory) {
+		draw_textbox ("Level complete!", 400, 300);
+	}
+	
 	draw_textbox ("Points: " + String (game_state.points), 0, 0);
 	
 	if (false) {
@@ -1345,7 +1386,7 @@ function pause () {
 	draw (game_state);
 }
 
-load_map ("map_1");
+load_map (map_playlist [map_index]);
 
 set_running (false);
 
