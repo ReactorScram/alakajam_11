@@ -336,7 +336,8 @@ class LaraComponent {
 		this.walk_towards (ecs, entity, flee_dir, speed);
 	}
 	
-	step_normal (ecs: Ecs, entity: number) {
+	step_normal (game_state: GameState, entity: number) {
+		const ecs = game_state.level_state;
 		const lara_pos = ecs.positions.get (entity)!;
 		
 		const tile_x = Math.floor (lara_pos.x / 32);
@@ -374,6 +375,8 @@ class LaraComponent {
 			}
 		}
 		
+		// Check for snakes
+		
 		for (const [snake_e, snake] of ecs.snakes) {
 			if (snake.alive) {
 				const pos = ecs.positions.get (snake_e)!;
@@ -384,6 +387,19 @@ class LaraComponent {
 				blocked_tiles.set (index, snake_e);
 			}
 		}
+		
+		// Deduct points for garbage
+		
+		const garbage_e = ecs.nearest_entity (entity, ecs.garbages, 32);
+		if (typeof (garbage_e) == "number") {
+			const garbage = ecs.garbages.get (garbage_e)!;
+			if (! garbage.lara_touched) {
+				garbage.lara_touched = true;
+				game_state.points -= 1;
+			}
+		}
+		
+		// Walks towards the valuable cup
 		
 		for (const [n_x, n_y] of neighbors) {
 			const index_nay = n_y * ecs.map_width + n_x;
@@ -408,33 +424,35 @@ class LaraComponent {
 		this.walk_towards (ecs, entity, best_direction, 2.0);
 	}
 	
-	fixed_step (ecs: Ecs, entity: number) {
-		if (ecs.state == state_1_waiting) {
+	fixed_step (game_state: GameState, entity: number) {
+		const lvl = game_state.level_state;
+		
+		if (lvl.state == state_1_waiting) {
 			
 		}
-		else if (ecs.state == state_2_playing) {
-			this.step_normal (ecs, entity);
+		else if (lvl.state == state_2_playing) {
+			this.step_normal (game_state, entity);
 		}
-		else if (ecs.state == state_3_touched_cup) {
+		else if (lvl.state == state_3_touched_cup) {
 			
 		}
-		else if (ecs.state == state_4_victory_dance) {
+		else if (lvl.state == state_4_victory_dance) {
 			
 		}
-		else if (ecs.state == state_5_flee) {
-			this.step_flee (ecs, entity, 2.0);
+		else if (lvl.state == state_5_flee) {
+			this.step_flee (lvl, entity, 2.0);
 		}
-		else if (ecs.state == state_6_boulder_beat) {
+		else if (lvl.state == state_6_boulder_beat) {
 			
 		}
-		else if (ecs.state == state_7_boulder) {
-			this.step_flee (ecs, entity, 4.0);
+		else if (lvl.state == state_7_boulder) {
+			this.step_flee (lvl, entity, 4.0);
 		}
 	}
 }
 
 class GarbageComponent {
-	
+	lara_touched: boolean = false;
 }
 
 class HolderComponent {
@@ -800,15 +818,13 @@ class LevelState {
 class GameState {
 	// Non-ECS stuff
 	
-	frame_count: number;
+	frame_count: number = 0;
 	button_prompt: string = "";
 	frames_moved: number = 0;
 	
 	level_state: LevelState;
 	
-	constructor () {
-		this.frame_count = 0;
-	}
+	points: number = 0;
 	
 	load_map (name: string) {
 		const map = TileMaps [name];
@@ -877,7 +893,7 @@ class GameState {
 		}
 		
 		for (const [entity, lara] of lvl.laras) {
-			lara.fixed_step (lvl, entity);
+			lara.fixed_step (this, entity);
 		}
 		
 		for (const [entity, snake] of lvl.snakes) {
@@ -1113,6 +1129,25 @@ function fixed_step () {
 	cow_gamepad.tick ();
 }
 
+function draw_textbox (text: string, src_x: number, src_y: number) {
+	const margin = 10;
+	
+	const metrics = ctx.measureText (text);
+	
+	const half_width = metrics.width / 2 + margin;
+	const half_height = 20 / 2 + margin;
+	
+	const x = Math.floor (Math.max (half_width, Math.min (800 - half_width, src_x)));
+	const y = Math.floor (Math.max (half_height, Math.min (600 - half_height, src_y)));
+	
+	ctx.fillStyle = "#00000080";
+	ctx.fillRect (x - half_width, y - half_height, half_width * 2, half_height * 2);
+	
+	ctx.fillStyle = "#fff";
+	ctx.textAlign = "center";
+	ctx.fillText (text, x, y + 20 * 0.25);
+}
+
 function draw (game_state: GameState) {
 	const scale: number = canvas_element.width / 800;
 	const lvl = game_state.level_state;
@@ -1191,38 +1226,27 @@ function draw (game_state: GameState) {
 	
 	// UI
 	
+	ctx.resetTransform ();
+	ctx.scale (scale, scale);
+	
 	ctx.font = "20px sans-serif";
 	
 	const button_prompt = game_state.button_prompt;
 	if (button_prompt) {
-		const margin = 10;
-		
-		const metrics = ctx.measureText (button_prompt);
-		
-		const half_width = metrics.width / 2 + margin;
-		const half_height = 20 / 2 + margin;
-		
-		const x = Math.floor (Math.max (half_width, Math.min (800 - half_width, kristie_pos.x + 0)));
-		const y = Math.floor (Math.max (half_height, Math.min (600 - half_height, kristie_pos.y + 40)));
-		
-		ctx.fillStyle = "#00000080";
-		ctx.fillRect (x - half_width, y - half_height, half_width * 2, half_height * 2);
-		
-		ctx.fillStyle = "#fff";
-		ctx.textAlign = "center";
-		ctx.fillText (button_prompt, x, y + 20 * 0.25);
+		draw_textbox (button_prompt, kristie_pos.x - offset_x, kristie_pos.y + 40 - offset_y);
 	}
 	
-	ctx.resetTransform ();
-	ctx.scale (scale, scale);
+	draw_textbox ("Points: " + String (game_state.points), 0, 0);
 	
-	ctx.fillStyle ="#000";
-	
-	if (throbber_frame == 0) {
-		ctx.fillRect(5, 5, 10, 10);
-	}
-	else {
-		ctx.fillRect(15, 5, 10, 10);
+	if (false) {
+		ctx.fillStyle ="#000";
+		
+		if (throbber_frame == 0) {
+			ctx.fillRect(5, 5, 10, 10);
+		}
+		else {
+			ctx.fillRect(15, 5, 10, 10);
+		}
 	}
 	
 	if (! running) {
