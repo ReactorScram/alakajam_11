@@ -17,23 +17,22 @@ let fps_num: number = 60;
 let fps_den: number = 1000;
 let timestep_accum: number = fps_den / 2;
 
+const state_1_waiting = "1 waiting";
+const state_2_playing = "2 playing";
+const state_3_touched_cup = "3 touched cup";
+const state_4_victory_dance = "4 victory dance";
+const state_5_flee = "5 flee";
+
 class TileInfo {
 	sprite: string = "";
 	lara_can_walk: boolean = false;
 	kristie_can_walk: boolean = false;
-	is_goal: boolean = false;
 	
 	constructor (n: number) {
 		if (n == 2) {
 			this.sprite = "tile-ruins";
 			this.lara_can_walk = true;
 			this.kristie_can_walk = true;
-		}
-		else if (n == 3) {
-			this.sprite = "cup";
-			this.lara_can_walk = true;
-			this.kristie_can_walk = true;
-			this.is_goal = true;
 		}
 		else if (n == 4) {
 			this.sprite = "door-staff";
@@ -115,9 +114,17 @@ class ButtonComponent {
 	}
 }
 
+class CupComponent {
+	
+}
+
 interface Ecs {
+	state: string;
+	transition_timer: number;
+	
 	map_width: number;
 	
+	cups: Map <number, CupComponent>;
 	doors: Map <number, DoorComponent>;
 	holders: Map <number, HolderComponent>;
 	laras: Map <number, LaraComponent>;
@@ -258,7 +265,7 @@ class SnakeSpawnerComponent {
 }
 
 class LaraComponent {
-	fixed_step (ecs: Ecs, entity: number) {
+	step_normal (ecs: Ecs, entity: number) {
 		const lara_pos = ecs.positions.get (entity)!;
 		
 		const tile_x = Math.floor (lara_pos.x / 32);
@@ -275,6 +282,12 @@ class LaraComponent {
 		
 		let best_dist = dist_me;
 		let best_direction = [0, 0];
+		
+		if (best_dist == 0) {
+			ecs.state = state_3_touched_cup;
+			ecs.transition_timer = 30;
+			return;
+		}
 		
 		// Check for doors blocking our path
 		
@@ -354,6 +367,21 @@ class LaraComponent {
 			lara_pos.y += move_vec [1] * lara_speed;
 		}
 	}
+	
+	fixed_step (ecs: Ecs, entity: number) {
+		if (ecs.state == state_1_waiting) {
+			return;
+		}
+		else if (ecs.state == state_2_playing) {
+			this.step_normal (ecs, entity);
+		}
+		else if (ecs.state == state_3_touched_cup) {
+			return;
+		}
+		else if (ecs.state == state_4_victory_dance) {
+			return;
+		}
+	}
 }
 
 class HolderComponent {
@@ -367,6 +395,9 @@ class HolderComponent {
 }
 
 class LevelState {
+	state: string = state_1_waiting;
+	transition_timer: number = 0;
+	
 	map_width: number = 1;
 	map_data: Uint8Array;
 	
@@ -374,14 +405,15 @@ class LevelState {
 	
 	kristie: number;
 	
-	buttons: Map <number, ButtonComponent>;
-	doors: Map <number, DoorComponent>;
-	holders: Map <number, HolderComponent>;
-	laras: Map <number, LaraComponent>;
-	positions: Map <number, PosComponent>;
-	snakes: Map <number, SnakeComponent>;
-	snake_spawners: Map <number, SnakeSpawnerComponent>;
-	sprites: Map <number, SpriteComponent>;
+	cups: Map <number, CupComponent> = new Map ();
+	buttons: Map <number, ButtonComponent> = new Map ();
+	doors: Map <number, DoorComponent> = new Map ();
+	holders: Map <number, HolderComponent> = new Map ();
+	laras: Map <number, LaraComponent> = new Map ();
+	positions: Map <number, PosComponent> = new Map ();
+	snakes: Map <number, SnakeComponent> = new Map ();
+	snake_spawners: Map <number, SnakeSpawnerComponent> = new Map ();
+	sprites: Map <number, SpriteComponent> = new Map ();
 	
 	goal_map: Map <number, number>;
 	
@@ -390,15 +422,6 @@ class LevelState {
 		this.map_data = new Uint8Array (window.atob (map.layers [0].data).split("").map(function(c) {
 			return c.charCodeAt(0); 
 		}));
-		
-		this.buttons = new Map ();
-		this.doors = new Map ();
-		this.holders = new Map ();
-		this.laras = new Map ();
-		this.positions = new Map ();
-		this.snakes = new Map ();
-		this.snake_spawners = new Map ();
-		this.sprites = new Map ();
 		
 		const map_objects = map.layers [1];
 		
@@ -422,9 +445,9 @@ class LevelState {
 			const snapped_pos = new PosComponent (snapped_x, snapped_y);
 			//const snapped_pos = pos;
 			
+			this.positions.set (e, snapped_pos);
+			
 			if (tiled_type == "door") {
-				this.positions.set (e, snapped_pos);
-				
 				const door = new DoorComponent (false);
 				const sprite = new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2);
 				
@@ -442,15 +465,17 @@ class LevelState {
 				id_map.set (tiled_id, e);
 			}
 			else if (tiled_type == "button") {
-				this.positions.set (e, snapped_pos);
 				this.sprites.set (e, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
 				id_map.set (tiled_id, e);
 			}
 			else if (tiled_type == "spawn_snakes") {
-				this.positions.set (e, snapped_pos);
 				this.snake_spawners.set (e, new SnakeSpawnerComponent ());
 				this.snake_spawners.get (e)!.fixed_step (this, e);
 				id_map.set (tiled_id, e);
+			}
+			else if (tiled_type == "cup") {
+				this.cups.set (e, new CupComponent ());
+				this.sprites.set (e, new SpriteComponent ("cup", -32 / 2, -32 / 2));
 			}
 		}
 		
@@ -466,14 +491,14 @@ class LevelState {
 			const e = create_entity ();
 			const pos = new PosComponent (x, y);
 			
+			this.positions.set (e, pos);
+			
 			if (tiled_type == "spawn_lara") {
-				this.positions.set (e, pos);
 				this.sprites.set (e, new SpriteComponent ("lara", -32 / 2, -32 / 2));
 				this.laras.set (e, new LaraComponent ());
 				id_map.set (tiled_id, e);
 			}
 			else if (tiled_type == "spawn_kristie") {
-				this.positions.set (e, pos);
 				this.sprites.set (e, new SpriteComponent ("kristie", -32 / 2, -32 / 2));
 				this.holders.set (e, new HolderComponent ());
 				this.kristie = e;
@@ -525,16 +550,14 @@ class LevelState {
 		
 		// Set all goals to 0
 		
-		for (let y = 0; y < 32; y++) {
-			for (let x = 0; x < this.map_width; x++) {
-				const index = (y * this.map_width + x);
-				const tile = new TileInfo (this.map_data [index * 4]);
-				
-				if (tile.is_goal) {
-					goal_map.set (index, 0);
-					frontier_queue.push ([x, y]);
-				}
-			}
+		for (const [entity, cup] of this.cups) {
+			const pos = this.positions.get (entity)!;
+			const tile_x = Math.floor (pos.x / 32);
+			const tile_y = Math.floor (pos.y / 32);
+			const index = tile_y * this.map_width + tile_x;
+			
+			goal_map.set (index, 0);
+			frontier_queue.push ([tile_x, tile_y]);
 		}
 		
 		// Explore frontier
@@ -624,8 +647,13 @@ class LevelState {
 			return null;
 		}
 		
+		const level = this;
+		
 		return function () {
 			door.open = true;
+			if (level.state == state_1_waiting) {
+				level.state = state_2_playing;
+			}
 		};
 	}
 	
@@ -767,6 +795,21 @@ class GameState {
 		
 		for (const [entity, snake_spawner] of lvl.snake_spawners) {
 			snake_spawner.fixed_step (lvl, entity);
+		}
+		
+		if (lvl.transition_timer > 0) {
+			lvl.transition_timer -= 1;
+		}
+		
+		if (lvl.transition_timer <= 0) {
+			if (lvl.state == state_3_touched_cup) {
+				lvl.state = state_4_victory_dance;
+				lvl.transition_timer = 120;
+			}
+			else if (lvl.state == state_4_victory_dance) {
+				lvl.state = state_5_flee;
+				lvl.transition_timer = 30;
+			}
 		}
 	}
 }
@@ -1133,6 +1176,8 @@ load_map ("map_2");
 set_running (false);
 
 const sprite_names: string [] = [
+	"boulder-1",
+	"boulder-2",
 	"cup",
 	"door-glow",
 	"door-open",
