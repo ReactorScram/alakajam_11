@@ -22,6 +22,9 @@ const state_2_playing = "2 playing";
 const state_3_touched_cup = "3 touched cup";
 const state_4_victory_dance = "4 victory dance";
 const state_5_flee = "5 flee";
+const state_6_boulder_beat = "6 boulder beat";
+const state_7_boulder = "7 boulder";
+const state_8_victory = "8 victory";
 
 class TileInfo {
 	sprite: string = "";
@@ -133,6 +136,7 @@ interface Ecs {
 	snakes: Map <number, SnakeComponent>;
 	
 	goal_map: Map <number, number>;
+	lara_ant_trail: Map <number, number []>;
 	
 	nearest_entity (actor: number, map: Map <number, any>, radius: number): number | null;
 }
@@ -265,6 +269,72 @@ class SnakeSpawnerComponent {
 }
 
 class LaraComponent {
+	walk_towards (ecs: Ecs, entity: number, direction: number [], speed: number) {
+		const lara_pos = ecs.positions.get (entity)!;
+		
+		const tile_x = Math.floor (lara_pos.x / 32);
+		const tile_y = Math.floor (lara_pos.y / 32);
+		
+		let move_vec = [direction [0], direction [1]];
+		
+		const intra_x = lara_pos.x - tile_x * 32;
+		const intra_y = lara_pos.y - tile_y * 32;
+		
+		const corner_margin = 12;
+		
+		if (move_vec [0] == 0) {
+			if (intra_x < corner_margin) {
+				move_vec [0] = 1;
+			}
+			else if (intra_x > 32 - corner_margin) {
+				move_vec [0] = -1;
+			}
+		}
+		if (move_vec [1] == 0) {
+			if (intra_y < corner_margin) {
+				move_vec [1] = 1;
+			}
+			else if (intra_y > 32 - corner_margin) {
+				move_vec [1] = -1;
+			}
+		}
+		
+		const move_dist2 = move_vec [0] * move_vec [0] + move_vec [1] * move_vec [1];
+		if (move_dist2 > 0) {
+			const move_dist = Math.sqrt (move_dist2);
+			move_vec = [move_vec [0] / move_dist, move_vec [1] / move_dist];
+			
+			lara_pos.x += move_vec [0] * speed;
+			lara_pos.y += move_vec [1] * speed;
+		}
+	}
+	
+	step_flee (ecs: Ecs, entity: number, speed: number) {
+		const lara_pos = ecs.positions.get (entity)!;
+		
+		const tile_x = Math.floor (lara_pos.x / 32);
+		const tile_y = Math.floor (lara_pos.y / 32);
+		const index_me = tile_y * ecs.map_width + tile_x;
+		
+		const flee_to = ecs.lara_ant_trail.get (index_me);
+		if (! flee_to) {
+			ecs.state = state_8_victory;
+			for (const [entity, cup] of ecs.cups) {
+				const sprite = ecs.sprites.get (entity)!;
+				sprite.name = "boulder-dead";
+				sprite.name_func = null;
+			}
+			return;
+		}
+		
+		const flee_dir = [
+			flee_to [0] - tile_x,
+			flee_to [1] - tile_y
+		];
+		
+		this.walk_towards (ecs, entity, flee_dir, speed);
+	}
+	
 	step_normal (ecs: Ecs, entity: number) {
 		const lara_pos = ecs.positions.get (entity)!;
 		
@@ -329,57 +399,35 @@ class LaraComponent {
 			if (dist_nay < best_dist) {
 				best_dist = dist_nay;
 				best_direction = [n_x - tile_x, n_y - tile_y];
+				
+				ecs.lara_ant_trail.set (index_nay, [tile_x, tile_y]);
 			}
 		}
 		
-		const intra_x = lara_pos.x - tile_x * 32;
-		const intra_y = lara_pos.y - tile_y * 32;
-		
-		let move_vec = [best_direction [0], best_direction [1]];
-		
-		const corner_margin = 12;
-		
-		if (best_direction [0] == 0) {
-			if (intra_x < corner_margin) {
-				move_vec [0] = 1;
-			}
-			else if (intra_x > 32 - corner_margin) {
-				move_vec [0] = -1;
-			}
-		}
-		if (best_direction [1] == 0) {
-			if (intra_y < corner_margin) {
-				move_vec [1] = 1;
-			}
-			else if (intra_y > 32 - corner_margin) {
-				move_vec [1] = -1;
-			}
-		}
-		
-		const move_dist2 = move_vec [0] * move_vec [0] + move_vec [1] * move_vec [1];
-		if (move_dist2 > 0) {
-			const move_dist = Math.sqrt (move_dist2);
-			move_vec = [move_vec [0] / move_dist, move_vec [1] / move_dist];
-			
-			const lara_speed: number = 2.0;
-			
-			lara_pos.x += move_vec [0] * lara_speed;
-			lara_pos.y += move_vec [1] * lara_speed;
-		}
+		this.walk_towards (ecs, entity, best_direction, 2.0);
 	}
 	
 	fixed_step (ecs: Ecs, entity: number) {
 		if (ecs.state == state_1_waiting) {
-			return;
+			
 		}
 		else if (ecs.state == state_2_playing) {
 			this.step_normal (ecs, entity);
 		}
 		else if (ecs.state == state_3_touched_cup) {
-			return;
+			
 		}
 		else if (ecs.state == state_4_victory_dance) {
-			return;
+			
+		}
+		else if (ecs.state == state_5_flee) {
+			this.step_flee (ecs, entity, 2.0);
+		}
+		else if (ecs.state == state_6_boulder_beat) {
+			
+		}
+		else if (ecs.state == state_7_boulder) {
+			this.step_flee (ecs, entity, 4.0);
 		}
 	}
 }
@@ -416,6 +464,7 @@ class LevelState {
 	sprites: Map <number, SpriteComponent> = new Map ();
 	
 	goal_map: Map <number, number>;
+	lara_ant_trail: Map <number, number []> = new Map ();
 	
 	constructor (map) {
 		this.map_width = map.width;
@@ -647,6 +696,10 @@ class LevelState {
 			return null;
 		}
 		
+		if (door.open) {
+			return null;
+		}
+		
 		const level = this;
 		
 		return function () {
@@ -804,11 +857,39 @@ class GameState {
 		if (lvl.transition_timer <= 0) {
 			if (lvl.state == state_3_touched_cup) {
 				lvl.state = state_4_victory_dance;
-				lvl.transition_timer = 120;
+				lvl.transition_timer = 60;
+				
+				for (const [entity, cup] of lvl.cups) {
+					const sprite = lvl.sprites.get (entity)!;
+					sprite.name = null;
+				}
 			}
 			else if (lvl.state == state_4_victory_dance) {
 				lvl.state = state_5_flee;
-				lvl.transition_timer = 30;
+				lvl.transition_timer = 60;
+			}
+			else if (lvl.state == state_5_flee) {
+				lvl.state = state_6_boulder_beat;
+				lvl.transition_timer = 60;
+				
+				// I'm out of time, so the boulder is implemented as a cup
+				// which is a Lara wearing a boulder suit.
+				
+				for (const [e, cup] of lvl.cups) {
+					const sprite = lvl.sprites.get (e)!;
+					sprite.name_func = function () {
+						if (game_state.frame_count % 30 < 15) {
+							return "boulder-1";
+						}
+						else {
+							return "boulder-2";
+						}
+					};
+					lvl.laras.set (e, new LaraComponent ());
+				}
+			}
+			else if (lvl.state == state_6_boulder_beat) {
+				lvl.state = state_7_boulder;
 			}
 		}
 	}
@@ -1178,6 +1259,7 @@ set_running (false);
 const sprite_names: string [] = [
 	"boulder-1",
 	"boulder-2",
+	"boulder-dead",
 	"cup",
 	"door-glow",
 	"door-open",
