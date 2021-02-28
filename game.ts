@@ -60,6 +60,7 @@ class TileInfo {
 }
 
 let last_entity = 0;
+let garbage_counter = 0;
 
 function create_entity () {
 	last_entity += 1;
@@ -432,6 +433,10 @@ class LaraComponent {
 	}
 }
 
+class GarbageComponent {
+	
+}
+
 class HolderComponent {
 	holding: number | null;
 	dir_x: number;
@@ -456,6 +461,7 @@ class LevelState {
 	cups: Map <number, CupComponent> = new Map ();
 	buttons: Map <number, ButtonComponent> = new Map ();
 	doors: Map <number, DoorComponent> = new Map ();
+	garbages: Map <number, GarbageComponent> = new Map ();
 	holders: Map <number, HolderComponent> = new Map ();
 	laras: Map <number, LaraComponent> = new Map ();
 	positions: Map <number, PosComponent> = new Map ();
@@ -525,6 +531,21 @@ class LevelState {
 			else if (tiled_type == "cup") {
 				this.cups.set (e, new CupComponent ());
 				this.sprites.set (e, new SpriteComponent ("cup", -32 / 2, -32 / 2));
+			}
+			else if (tiled_type == "garbage") {
+				const garbage_sprites = [
+					"garbage-burger",
+					"garbage-newspaper",
+					"garbage-torii",
+				];
+				
+				this.garbages.set (e, new GarbageComponent ());
+				this.sprites.set (e, new SpriteComponent (garbage_sprites [garbage_counter], -32 / 2, -32 / 2));
+				
+				garbage_counter += 1;
+				if (garbage_counter > garbage_sprites.length) {
+					garbage_counter = 0;
+				}
 			}
 		}
 		
@@ -710,6 +731,22 @@ class LevelState {
 		};
 	}
 	
+	can_destroy_garbage (actor: number): (() => void) | null {
+		const nearest_e = this.nearest_entity (actor, this.garbages, 32);
+		if (typeof (nearest_e) != "number") {
+			return null;
+		}
+		
+		const sprite = this.sprites.get (nearest_e);
+		if (! sprite) {
+			return null;
+		}
+		
+		return function () {
+			sprite.name = null;
+		};
+	}
+	
 	can_pick_snake (actor: number): (() => void) | null {
 		const holder = this.holders.get (actor);
 		if (! holder) {
@@ -724,10 +761,7 @@ class LevelState {
 			return null;
 		}
 		
-		const snake = this.snakes.get (nearest_snake);
-		if (! snake) {
-			return null;
-		}
+		const snake = this.snakes.get (nearest_snake)!;
 		
 		return function () {
 			snake.held_by = actor;
@@ -813,6 +847,10 @@ class GameState {
 		
 		let action: (() => void) | null = null;
 		
+		if (action === null) {
+			action = lvl.can_destroy_garbage (lvl.kristie);
+			this.button_prompt = "Space: Destroy garbage";
+		}
 		if (action === null) {
 			action = lvl.can_drop_snake (lvl.kristie);
 			this.button_prompt = "Space: Drop snake";
@@ -1264,6 +1302,9 @@ const sprite_names: string [] = [
 	"door-glow",
 	"door-open",
 	"door-staff",
+	"garbage-burger",
+	"garbage-newspaper",
+	"garbage-torii",
 	"kristie",
 	"lara",
 	"placeholder-button",

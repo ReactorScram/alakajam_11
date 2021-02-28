@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.4" tiledversion="1.4.3" orientation="orthogonal" renderorder="right-down" width="128" height="128" tilewidth="32" tileheight="32" infinite="0" backgroundcolor="#3d3846" nextlayerid="3" nextobjectid="9">
+<map version="1.4" tiledversion="1.4.3" orientation="orthogonal" renderorder="right-down" width="128" height="128" tilewidth="32" tileheight="32" infinite="0" backgroundcolor="#3d3846" nextlayerid="3" nextobjectid="10">
  <editorsettings>
   <chunksize width="128" height="128"/>
   <export target="../assets/tmx/map_2.js" format="js"/>
@@ -39,6 +39,9 @@
    <point/>
   </object>
   <object id="8" type="cup" x="720" y="338">
+   <point/>
+  </object>
+  <object id="9" type="garbage" x="207" y="338">
    <point/>
   </object>
  </objectgroup>
