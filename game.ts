@@ -200,7 +200,7 @@ class SnakeComponent {
 		}
 		
 		if (lara_pos.x < snake_pos.x) {
-			const snake_speed: number = 0.5;
+			const snake_speed: number = 0.0;
 			
 			snake_pos.x -= snake_speed;
 			
@@ -414,11 +414,16 @@ class LevelState {
 			const y = obj ["y"];
 			const tiled_type = obj ["type"];
 			
+			const snapped_x = Math.floor (x / 32) * 32 + 16;
+			const snapped_y = Math.floor (y / 32) * 32 + 16;
+			
 			const e = create_entity ();
 			const pos = new PosComponent (x, y);
+			const snapped_pos = new PosComponent (snapped_x, snapped_y);
+			//const snapped_pos = pos;
 			
 			if (tiled_type == "door") {
-				this.positions.set (e, pos);
+				this.positions.set (e, snapped_pos);
 				
 				const door = new DoorComponent (false);
 				const sprite = new SpriteComponent ("placeholder-door", -32 / 2, -32 / 2);
@@ -434,29 +439,46 @@ class LevelState {
 				
 				this.sprites.set (e, sprite);
 				this.doors.set (e, door);
+				id_map.set (tiled_id, e);
 			}
 			else if (tiled_type == "button") {
-				this.positions.set (e, pos);
+				this.positions.set (e, snapped_pos);
 				this.sprites.set (e, new SpriteComponent ("placeholder-button", -32 / 2, -32 / 2));
+				id_map.set (tiled_id, e);
 			}
-			else if (tiled_type == "spawn_lara") {
+			else if (tiled_type == "spawn_snakes") {
+				this.positions.set (e, snapped_pos);
+				this.snake_spawners.set (e, new SnakeSpawnerComponent ());
+				this.snake_spawners.get (e)!.fixed_step (this, e);
+				id_map.set (tiled_id, e);
+			}
+		}
+		
+		// Create Lara and Kristie in a second pass so they'll always be
+		// on top
+		
+		for (const obj of map_objects.objects) {
+			const tiled_id = obj ["id"];
+			const x = obj ["x"];
+			const y = obj ["y"];
+			const tiled_type = obj ["type"];
+			
+			const e = create_entity ();
+			const pos = new PosComponent (x, y);
+			
+			if (tiled_type == "spawn_lara") {
 				this.positions.set (e, pos);
 				this.sprites.set (e, new SpriteComponent ("lara", -32 / 2, -32 / 2));
 				this.laras.set (e, new LaraComponent ());
+				id_map.set (tiled_id, e);
 			}
 			else if (tiled_type == "spawn_kristie") {
 				this.positions.set (e, pos);
 				this.sprites.set (e, new SpriteComponent ("kristie", -32 / 2, -32 / 2));
 				this.holders.set (e, new HolderComponent ());
 				this.kristie = e;
+				id_map.set (tiled_id, e);
 			}
-			else if (tiled_type == "spawn_snakes") {
-				this.positions.set (e, pos);
-				this.snake_spawners.set (e, new SnakeSpawnerComponent ());
-				this.snake_spawners.get (e)!.fixed_step (this, e);
-			}
-			
-			id_map.set (tiled_id, e);
 		}
 		
 		// Link up objects using id_map

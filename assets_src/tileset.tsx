@@ -5,7 +5,7 @@
   <image width="32" height="32" source="../assets/png/placeholder-closed-tile.png"/>
  </tile>
  <tile id="1">
-  <image width="32" height="32" source="../assets/png/placeholder-open-tile.png"/>
+  <image width="32" height="32" source="../assets/png/tile-ruins.png"/>
  </tile>
  <tile id="2">
   <image width="32" height="32" source="../assets/png/cup.png"/>
