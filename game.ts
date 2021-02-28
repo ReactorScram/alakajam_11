@@ -393,7 +393,7 @@ class LaraComponent {
 		const garbage_e = ecs.nearest_entity (entity, ecs.garbages, 32);
 		if (typeof (garbage_e) == "number") {
 			const garbage = ecs.garbages.get (garbage_e)!;
-			if (! garbage.lara_touched) {
+			if (! garbage.cleaned && ! garbage.lara_touched) {
 				garbage.lara_touched = true;
 				game_state.points -= 1;
 			}
@@ -452,6 +452,7 @@ class LaraComponent {
 }
 
 class GarbageComponent {
+	cleaned: boolean = false;
 	lara_touched: boolean = false;
 }
 
@@ -755,13 +756,25 @@ class LevelState {
 			return null;
 		}
 		
-		const sprite = this.sprites.get (nearest_e);
-		if (! sprite) {
+		const garbage = this.garbages.get (nearest_e)!;
+		if (garbage.cleaned) {
 			return null;
 		}
 		
+		const that = this;
 		return function () {
+			const sprite = that.sprites.get (nearest_e);
+			if (! sprite) {
+				return null;
+			}
+			
+			const garbage = that.garbages.get (nearest_e)!;
+			if (garbage.cleaned) {
+				return null;
+			}
+	
 			sprite.name = null;
+			garbage.cleaned = true;
 		};
 	}
 	
@@ -851,14 +864,32 @@ class GameState {
 		
 		const kristie_new_x = kristie_pos.x + kristie_speed * move_vec [0];
 		const kristie_new_y = kristie_pos.y + kristie_speed * move_vec [1];
+		const kristie_new_index = Math.floor (kristie_new_y / 32) * lvl.map_width + Math.floor (kristie_new_x / 32);
 		
-		if (! (move_vec [0] == 0.0 && move_vec [1] == 0.0)) {
-			this.frames_moved += 1;
+		let kristie_can_move = true;
+		
+		kristie_can_move = kristie_can_move && lvl.get_tile (kristie_new_x, kristie_new_y).kristie_can_walk;
+		
+		for (const [door_e, door] of lvl.doors) {
+			if (! door.open) {
+				const pos = lvl.positions.get (door_e)!;
+				const x = Math.floor (pos.x / 32);
+				const y = Math.floor (pos.y / 32);
+				const index = y * lvl.map_width + x;
+				
+				if (index == kristie_new_index) {
+					kristie_can_move = false;
+				}
+			}
 		}
 		
-		if (lvl.get_tile (kristie_new_x, kristie_new_y).kristie_can_walk) {
+		if (kristie_can_move) {
 			kristie_pos.x = kristie_new_x;
 			kristie_pos.y = kristie_new_y;
+			
+			if (! (move_vec [0] == 0.0 && move_vec [1] == 0.0)) {
+				this.frames_moved += 1;
+			}
 		}
 		
 		let action: (() => void) | null = null;
@@ -1314,7 +1345,7 @@ function pause () {
 	draw (game_state);
 }
 
-load_map ("map_2");
+load_map ("map_1");
 
 set_running (false);
 
